@@ -2191,7 +2191,7 @@ fn sidebar<L: CoreLink>(state: &State<L>) -> Element<'_, Message> {
             column![
                 text("Пока контактов нет. Создайте код приглашения или вставьте чужой.")
                     .size(12.0 * scale)
-                    .color(palette::DIM),
+                    .color(palette::MUTED),
                 row![
                     button(text("Пригласить").size(12.0 * scale).color(palette::TEXT))
                         .padding(Padding {
@@ -2241,7 +2241,11 @@ fn sidebar<L: CoreLink>(state: &State<L>) -> Element<'_, Message> {
             let mut list = column![].spacing(2);
             for row in &rows {
                 if row.pinned {
-                    list = list.push(text("Закреплённый").size(10.0 * scale).color(palette::DIM));
+                    list = list.push(
+                        text("Закреплённый")
+                            .size(10.0 * scale)
+                            .color(palette::MUTED),
+                    );
                 }
                 // Правая кнопка — меню знакомства; on_move запоминает точку.
                 list = list.push(
@@ -2267,7 +2271,7 @@ fn sidebar<L: CoreLink>(state: &State<L>) -> Element<'_, Message> {
     let mut pane = column![list].spacing(4);
     if has_contacts {
         pane = pane.push(
-            button(text("Пригласить").size(12.0 * scale).color(palette::DIM))
+            button(text("Пригласить").size(12.0 * scale).color(palette::MUTED))
                 .width(Length::Fill)
                 .padding(Padding {
                     top: 6.0,
@@ -2299,7 +2303,7 @@ fn main_pane<L: CoreLink>(state: &State<L>) -> Element<'_, Message> {
         return container(
             text("Выберите чат слева")
                 .size(13.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         )
         .width(Length::Fill)
         .height(Length::Fill)

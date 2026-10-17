@@ -75,7 +75,7 @@ pub fn contact_row(
         .color(if has_unread || selected {
             palette::TEXT
         } else {
-            palette::DIM
+            palette::MUTED
         })
         .width(Length::Fill);
 
@@ -114,7 +114,7 @@ pub fn date_sep(ts_ms: i64, scale: f32) -> Element<'static, Message> {
     container(
         text(crate::ui::date_label(ts_ms))
             .size(11.0 * scale)
-            .color(palette::DIM),
+            .color(palette::MUTED),
     )
     .width(Length::Fill)
     .align_x(Horizontal::Center)
@@ -146,9 +146,9 @@ pub fn sys_line(body: String, scale: f32) -> Element<'static, Message> {
 /// GUI_STYLE.md §2). У чужой группы статуса нет.
 fn send_status(send: &SendState) -> Option<(String, iced::Color)> {
     match send {
-        SendState::Sending => Some(("отправляю".to_owned(), palette::DIM)),
-        SendState::Sent => Some(("отправлено".to_owned(), palette::DIM)),
-        SendState::Queued => Some(("отправится позже".to_owned(), palette::DIM)),
+        SendState::Sending => Some(("отправляю".to_owned(), palette::MUTED)),
+        SendState::Sent => Some(("отправлено".to_owned(), palette::MUTED)),
+        SendState::Queued => Some(("отправится позже".to_owned(), palette::MUTED)),
         SendState::Delivered => Some(("доставлено".to_owned(), palette::OK)),
         SendState::Failed(reason) => Some((format!("не ушло: {reason}"), palette::ERR)),
     }
@@ -246,7 +246,12 @@ pub fn message_group(
         // строке со спойлером раскрывает его (S14).
         // Файл (S10) рендерится своей строкой; текст — разметкой (S14).
         let body_text: Element<'static, Message> = match &fb.file {
-            Some(file) => file_row(fb.id, file, scale),
+            Some(file) => file_row(
+                fb.id,
+                file,
+                scale,
+                file_metadata_color(*mine, false, body.len()),
+            ),
             None => {
                 let mut area =
                     mouse_area(rich_body(body, entities, revealed.contains(msg_id), scale))
@@ -334,7 +339,7 @@ pub fn compact_group(
             text(name.clone())
                 .size(12.0 * scale)
                 .font(palette::bold())
-                .color(palette::DIM),
+                .color(palette::MUTED),
         );
     }
     let indent = if *mine { 16.0 } else { 0.0 };
@@ -343,7 +348,12 @@ pub fn compact_group(
         // ПКМ по строке — меню сообщения (закрепить/открепить, S12);
         // клик по спойлеру раскрывает (S14).
         let content: Element<'static, Message> = match &b.file {
-            Some(file) => file_row(b.id, file, scale),
+            Some(file) => file_row(
+                b.id,
+                file,
+                scale,
+                file_metadata_color(*mine, true, body.len()),
+            ),
             None => {
                 let mut area =
                     mouse_area(rich_body(body, entities, revealed.contains(msg_id), scale))
@@ -435,7 +445,7 @@ pub fn invite_panel(view: &InviteView, scale: f32) -> Element<'_, Message> {
     .spacing(10);
 
     // Форма выдачи: адрес опционален; relay только с адресом (CORE-API §4.2).
-    body = body.push(text("Адрес").size(11.0 * scale).color(palette::DIM));
+    body = body.push(text("Адрес").size(11.0 * scale).color(palette::MUTED));
     body = body.push(
         text_input("192.168.1.5:7777 — необязательно", &view.addr)
             .on_input(|value| Message::Meet(MeetIn::AddrInput(value)))
@@ -453,7 +463,7 @@ pub fn invite_panel(view: &InviteView, scale: f32) -> Element<'_, Message> {
     body = body.push(
         text("Без адреса код работает только в одной локальной сети.")
             .size(10.0 * scale)
-            .color(palette::DIM),
+            .color(palette::MUTED),
     );
     body = body.push(
         button(text("Выдать код").size(12.0 * scale).font(palette::bold()))
@@ -467,14 +477,14 @@ pub fn invite_panel(view: &InviteView, scale: f32) -> Element<'_, Message> {
             .on_press_maybe((!view.submitting).then_some(Message::Meet(MeetIn::IssueInvite))),
     );
 
-    body = body.push(text("Мой код").size(11.0 * scale).color(palette::DIM));
+    body = body.push(text("Мой код").size(11.0 * scale).color(palette::MUTED));
     body = body.push(match (&view.code, &view.error) {
         (Some(code), _) => text(crate::ui::elided_code(code))
             .size(11.0 * scale)
             .color(palette::TEXT),
         (None, None) => text("Код появится после выдачи.")
             .size(11.0 * scale)
-            .color(palette::DIM),
+            .color(palette::MUTED),
         (None, Some(_)) => text("Код не выдан.").size(11.0 * scale).color(palette::ERR),
     });
 
@@ -509,7 +519,7 @@ pub fn invite_panel(view: &InviteView, scale: f32) -> Element<'_, Message> {
         body = body.push(
             text("Код одноразовый: действует до первого подключения.")
                 .size(10.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         );
     }
 
@@ -518,7 +528,7 @@ pub fn invite_panel(view: &InviteView, scale: f32) -> Element<'_, Message> {
         .push(
             text("Вставить чужой код")
                 .size(11.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         )
         .push(
             row![
@@ -646,7 +656,9 @@ pub fn context_menu(
         "Заблокировать"
     };
     let mut items = column![
-        text(name.to_owned()).size(11.0 * scale).color(palette::DIM),
+        text(name.to_owned())
+            .size(11.0 * scale)
+            .color(palette::MUTED),
         button(text(label).size(13.0 * scale).color(if blocked {
             palette::TEXT
         } else {
@@ -739,7 +751,7 @@ pub fn card_bubble(name: String, scale: f32) -> Element<'static, Message> {
                 .color(palette::TEXT),
             text("визитка · добавить можно по приглашению")
                 .size(10.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         ]
         .spacing(2),
     )
@@ -777,7 +789,7 @@ pub fn send_card_panel(rows: Vec<(Option<Cid>, String)>, scale: f32) -> Element<
         );
     }
     list = list.push(
-        button(text("Отмена").size(13.0 * scale).color(palette::DIM))
+        button(text("Отмена").size(13.0 * scale).color(palette::MUTED))
             .width(Length::Fill)
             .padding(Padding {
                 top: 6.0,
@@ -882,7 +894,7 @@ pub fn call_panel(
             title,
             text("входящий звонок")
                 .size(12.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
             row![
                 action("Принять", Message::Call(CallIn::Answer), true),
                 action("Отклонить", Message::Call(CallIn::Decline), false),
@@ -892,7 +904,7 @@ pub fn call_panel(
         .spacing(12),
         CallPhase::Outgoing => column![
             title,
-            text("звоним…").size(12.0 * scale).color(palette::DIM),
+            text("звоним…").size(12.0 * scale).color(palette::MUTED),
             action("Отменить", Message::Call(CallIn::Decline), false),
         ]
         .spacing(12),
@@ -935,7 +947,7 @@ pub fn pins_bar(count: usize, preview: Option<&str>, scale: f32) -> Element<'sta
     button(
         text(label)
             .size(11.0 * scale)
-            .color(palette::DIM)
+            .color(palette::MUTED)
             .wrapping(iced::widget::text::Wrapping::None),
     )
     .width(Length::Fill)
@@ -966,12 +978,12 @@ pub fn pins_panel(entries: &[PinEntry], scale: f32) -> Element<'static, Message>
                 column![
                     text(time_hm(entry.ts_ms))
                         .size(10.0 * scale)
-                        .color(palette::DIM),
+                        .color(palette::MUTED),
                     text(body.clone()).size(13.0 * scale).color(palette::TEXT),
                 ]
                 .spacing(1)
                 .width(Length::Fill),
-                button(text("Открепить").size(11.0 * scale).color(palette::DIM))
+                button(text("Открепить").size(11.0 * scale).color(palette::MUTED))
                     .padding(Padding {
                         top: 4.0,
                         right: 8.0,
@@ -989,7 +1001,7 @@ pub fn pins_panel(entries: &[PinEntry], scale: f32) -> Element<'static, Message>
         list = list.push(
             text(format!("Загружается: {} из {}", resolved, entries.len()))
                 .size(11.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         );
     }
     container(scrollable(list))
@@ -1027,7 +1039,7 @@ pub fn msg_menu(
         if pin_action.is_some() {
             palette::TEXT
         } else {
-            palette::DIM
+            palette::MUTED
         },
     ))
     .width(Length::Fill)
@@ -1041,7 +1053,7 @@ pub fn msg_menu(
     if let Some(message) = pin_action {
         pin_button = pin_button.on_press(message);
     }
-    let mut items = column![text(preview).size(11.0 * scale).color(palette::DIM)].spacing(2);
+    let mut items = column![text(preview).size(11.0 * scale).color(palette::MUTED)].spacing(2);
     if has_pin_row {
         items = items.push(pin_button);
     }
@@ -1049,7 +1061,7 @@ pub fn msg_menu(
         items = items.push(
             text("Закрепить можно после отправки")
                 .size(10.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         );
     }
     // Ряд быстрых реакций (S15). Своё сообщение в полёте (нет msg_id
@@ -1063,7 +1075,7 @@ pub fn msg_menu(
                 .color(if react.is_some() {
                     palette::TEXT
                 } else {
-                    palette::DIM
+                    palette::MUTED
                 }),
         )
         .padding(Padding {
@@ -1083,11 +1095,11 @@ pub fn msg_menu(
         items = items.push(
             text("Реагировать можно после отправки")
                 .size(10.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         );
     }
     items = items.push(
-        button(text("Отмена").size(13.0 * scale).color(palette::DIM))
+        button(text("Отмена").size(13.0 * scale).color(palette::MUTED))
             .width(Length::Fill)
             .padding(Padding {
                 top: 6.0,
@@ -1173,7 +1185,7 @@ pub fn settings_panel<'a>(
             .spacing(8),
             text(name_note.unwrap_or_default())
                 .size(10.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
             // Аватарка (S8б): своё фото в визитках; 96×96 JPEG ≤ 16 КБ —
             // лимит ядра, сжатие при выборе.
             text("Фото в визитках")
@@ -1210,7 +1222,7 @@ pub fn settings_panel<'a>(
                 .style(palette::checkbox_style),
             text(format!("Масштаб шрифта: {percent}%"))
                 .size(12.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
             row![
                 step_button(
                     "Уменьшить",
@@ -1275,16 +1287,16 @@ pub fn search_panel<'a>(
         } else {
             "Поиск ищет по загруженным сообщениям этого чата."
         };
-        results = results.push(text(hint).size(12.0 * scale).color(palette::DIM));
+        results = results.push(text(hint).size(12.0 * scale).color(palette::MUTED));
     } else if let Some(error) = &view.error {
         results = results.push(text(error.clone()).size(12.0 * scale).color(palette::ERR));
     } else if searching {
-        results = results.push(text("Ищу…").size(12.0 * scale).color(palette::DIM));
+        results = results.push(text("Ищу…").size(12.0 * scale).color(palette::MUTED));
     } else if rows.is_empty() {
         results = results.push(
             text("Ничего не найдено.")
                 .size(12.0 * scale)
-                .color(palette::DIM),
+                .color(palette::MUTED),
         );
     } else {
         let shown = if kernel {
@@ -1296,11 +1308,11 @@ pub fn search_panel<'a>(
             let author = if hit.mine { "я" } else { "не я" };
             let mut line = row![text(time_hm(hit.ts_ms))
                 .size(11.0 * scale)
-                .color(palette::DIM),]
+                .color(palette::MUTED),]
             .spacing(8)
             .align_y(iced::alignment::Vertical::Center);
             if let Some(chat) = &hit.chat {
-                line = line.push(text(chat.clone()).size(11.0 * scale).color(palette::DIM));
+                line = line.push(text(chat.clone()).size(11.0 * scale).color(palette::MUTED));
             }
             line = line
                 .push(
@@ -1309,7 +1321,7 @@ pub fn search_panel<'a>(
                         .color(palette::TEXT),
                 )
                 .push(space::Space::new().width(Length::Fill))
-                .push(text(author).size(11.0 * scale).color(palette::DIM));
+                .push(text(author).size(11.0 * scale).color(palette::MUTED));
             results = results.push(
                 button(line)
                     .width(Length::Fill)
@@ -1345,7 +1357,7 @@ pub fn search_panel<'a>(
             results = results.push(
                 text(format!("и ещё {}", rows.len() - SEARCH_SHOW))
                     .size(11.0 * scale)
-                    .color(palette::DIM),
+                    .color(palette::MUTED),
             );
         }
     }
@@ -1384,6 +1396,7 @@ fn file_row(
     msg_id: MsgId,
     file: &crate::model::msg::FileRef,
     scale: f32,
+    metadata_color: iced::Color,
 ) -> Element<'static, Message> {
     let content = iced::widget::Column::new()
         .push(
@@ -1395,7 +1408,7 @@ fn file_row(
         .push(
             text(crate::ui::human_size(file.size))
                 .size(11.0 * scale)
-                .color(palette::DIM),
+                .color(metadata_color),
         )
         .spacing(2);
     let mut area = mouse_area(content).on_right_press(Message::Chat(ChatIn::OpenMsgMenu(msg_id)));
@@ -1549,4 +1562,26 @@ fn body_spans(body: &str, entities: &[Entity], revealed: bool) -> Vec<Span<'stat
         spans.push(span);
     }
     spans
+}
+
+fn file_metadata_color(mine: bool, compact: bool, body_len: usize) -> iced::Color {
+    if mine && !compact && body_len <= 300 {
+        palette::DIM
+    } else {
+        palette::MUTED
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::file_metadata_color;
+    use crate::ui::palette;
+
+    #[test]
+    fn file_metadata_color_follows_rendered_surface() {
+        assert_eq!(file_metadata_color(false, false, 8), palette::MUTED);
+        assert_eq!(file_metadata_color(true, false, 8), palette::DIM);
+        assert_eq!(file_metadata_color(true, true, 8), palette::MUTED);
+        assert_eq!(file_metadata_color(true, false, 301), palette::MUTED);
+    }
 }

@@ -214,6 +214,7 @@ const SCENARIOS: &[(&str, fn())] = &[
     ),
     ("звонок: оверлей и mute", call_overlay_and_mute),
     ("разметка в ленте", formatted_message_renders),
+    ("нейтральные подписи: resize и 120%", neutral_text_matrix),
 ];
 
 #[test]
@@ -922,4 +923,123 @@ fn formatted_message_renders() {
         Instruction::Expect(Expectation::Text("249 КБ".into())),
     );
     finish(emu, &program, "formatted_feed");
+}
+
+/// Только синтетический State: один и тот же текст на разных фонах,
+/// без фоновых событий, сети и изменения пользовательских данных.
+fn neutral_text_matrix() {
+    use shopot_gui::model::msg::{FileRef, MsgId};
+    use shopot_gui::model::store::Contact;
+    use shopot_gui::ui::{self, ChatIn, MeetIn, Message, SettingsIn};
+    use std::sync::Arc;
+
+    let boot = || {
+        let mut state = ui::State::new(Arc::new(Link::new(Scene::smoke())));
+        state.link_up = true;
+        state.kernel_api = (2, 2);
+        state.store.replace_contacts(vec![
+            Contact {
+                cid: Cid(1),
+                name: "Александра / Alexandra — длинное имя".into(),
+                online: false,
+                blocked: false,
+                avatar_id: None,
+            },
+            Contact {
+                cid: Cid(2),
+                name: "Борис / Boris".into(),
+                online: false,
+                blocked: false,
+                avatar_id: None,
+            },
+        ]);
+        state.store.select(Some(Cid(1)));
+        state.store.push_incoming(
+            Cid(1),
+            "Александра / Alexandra — длинное имя",
+            MsgId(100),
+            1_000,
+            "Жё/Шё: жёсткий срок.\nMixed RU/EN: проверка переноса длинной строки без потери текста.".into(),
+        );
+        let file = |name: &str, size, id| FileRef {
+            name: name.into(),
+            size,
+            file_id: [id; 16],
+            path: None,
+        };
+        state.store.push_incoming_file(
+            Cid(1),
+            "Александра / Alexandra — длинное имя",
+            2_000,
+            file("входящий.pdf", 2048, 1),
+        );
+        state
+            .store
+            .push_outgoing_file(Cid(1), 3_000, file("outgoing.pdf", 4096, 2));
+        state.store.mark_file_sent(Cid(1), [2; 16]);
+        (state, iced::Task::none())
+    };
+    let program =
+        iced::application(boot, ui::update::<Link>, ui::view::<Link>).theme(iced::Theme::Dark);
+
+    for (width, height) in [(1000, 700), (800, 560)] {
+        for percent in [100, 120] {
+            let suffix = format!("{width}x{height}_{percent}");
+            for (page, message, expected) in [
+                ("feed", None, "📎 входящий.pdf"),
+                (
+                    "compact",
+                    Some(Message::Settings(SettingsIn::ToggleCompact(true))),
+                    "📎 outgoing.pdf",
+                ),
+                (
+                    "settings",
+                    Some(Message::Settings(SettingsIn::Open)),
+                    "Скрывать текст в уведомлениях",
+                ),
+                (
+                    "invite",
+                    Some(Message::Meet(MeetIn::OpenInvite)),
+                    "Код появится после выдачи.",
+                ),
+                (
+                    "search",
+                    Some(Message::Chat(ChatIn::SearchOpen)),
+                    "Поиск по всей истории чата.",
+                ),
+                (
+                    "menu",
+                    Some(Message::Meet(MeetIn::OpenMenu(Cid(1)))),
+                    "Информация",
+                ),
+            ] {
+                // iced_test 0.14 не восстанавливает cache после screenshot:
+                // кадр всегда последний шаг отдельного эмулятора.
+                let (sender, mut receiver) = mpsc::channel(512);
+                let mut emu = Emulator::new(
+                    sender,
+                    &program,
+                    Mode::Immediate,
+                    iced::Size::new(width as f32, height as f32),
+                );
+                if percent == 120 {
+                    emu.update(
+                        &program,
+                        Message::Settings(SettingsIn::ChangeFontScale(0.2)),
+                    );
+                }
+                if let Some(message) = message {
+                    emu.update(&program, message);
+                }
+                run_instruction(
+                    &mut emu,
+                    &program,
+                    &mut receiver,
+                    Instruction::Expect(Expectation::Text(expected.into())),
+                );
+                let state = finish(emu, &program, &format!("neutral_{page}_{suffix}"));
+                assert!((state.store.settings.font_scale * 100.0 - percent as f32).abs() < 0.01);
+            }
+        }
+    }
 }

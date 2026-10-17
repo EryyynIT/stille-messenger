@@ -18,10 +18,10 @@ pub const SHEET: Color = Color::from_rgb8(0x1C, 0x1C, 0x21);
 pub const LINE: Color = Color::from_rgb8(0x2C, 0x2C, 0x33);
 /// Основной текст.
 pub const TEXT: Color = Color::from_rgb8(0xF2, 0xF2, 0xF7);
-/// Приглушённый текст: подписи и метки времени внутри пузырей.
+/// Второстепенный текст и плейсхолдеры на тёмных поверхностях (WCAG AA).
 pub const MUTED: Color = Color::from_rgb8(0x98, 0x98, 0x9F);
 
-/// Второстепенный текст: время, подсказки, служебное.
+/// Приглушённая графика; прежний цвет размера файла на синем пузыре.
 pub const DIM: Color = Color::from_rgb8(0x63, 0x63, 0x6B);
 /// Единственный акцент: синий iOS, он же пузырь моих сообщений.
 pub const ACCENT: Color = Color::from_rgb8(0x0A, 0x84, 0xFF);
@@ -162,7 +162,7 @@ pub fn editor(_: &Theme, status: text_editor::Status) -> text_editor::Style {
             width: 1.0,
             radius: Radius::from(20.0),
         },
-        placeholder: DIM,
+        placeholder: MUTED,
         value: TEXT,
         selection: Color::from_rgba8(0x0A, 0x84, 0xFF, 0.35),
     }
@@ -264,7 +264,7 @@ pub fn input(_: &Theme, status: text_input::Status) -> text_input::Style {
             radius: Radius::from(12.0),
         },
         icon: MUTED,
-        placeholder: DIM,
+        placeholder: MUTED,
         value: TEXT,
         selection: Color::from_rgba8(0x0A, 0x84, 0xFF, 0.35),
     }
@@ -301,5 +301,55 @@ pub fn button_invisible(_: &Theme, _: button::Status) -> button::Style {
     button::Style {
         background: None,
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn luminance(color: Color) -> f64 {
+        let linear = |channel: f32| {
+            let channel = f64::from(channel);
+            if channel <= 0.04045 {
+                channel / 12.92
+            } else {
+                ((channel + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * linear(color.r) + 0.7152 * linear(color.g) + 0.0722 * linear(color.b)
+    }
+
+    fn assert_aa(foreground: Color, background: Color) {
+        let (fg, bg) = (luminance(foreground), luminance(background));
+        let contrast = (fg.max(bg) + 0.05) / (fg.min(bg) + 0.05);
+        assert!(contrast >= 4.5, "контраст {contrast:.2}:1 ниже WCAG AA");
+    }
+
+    #[test]
+    fn secondary_text_meets_aa_on_dark_surfaces() {
+        let theirs = match bubble_theirs(&Theme::Dark).background.unwrap() {
+            Background::Color(color) => color,
+            _ => panic!("пузырь должен иметь сплошную заливку"),
+        };
+        for surface in [BG, PANEL, RAISE, SHEET, LINE, theirs] {
+            assert_aa(MUTED, surface);
+        }
+    }
+
+    #[test]
+    fn input_placeholders_meet_aa() {
+        let input = input(&Theme::Dark, text_input::Status::Active);
+        let editor = editor(&Theme::Dark, text_editor::Status::Active);
+        for (placeholder, background) in [
+            (input.placeholder, input.background),
+            (editor.placeholder, editor.background),
+        ] {
+            let Background::Color(background) = background else {
+                panic!("поле должно иметь сплошную заливку");
+            };
+            assert_eq!(placeholder, MUTED);
+            assert_aa(placeholder, background);
+        }
     }
 }
