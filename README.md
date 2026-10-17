@@ -36,7 +36,8 @@ Done so far:
   else's code; LAN, address and relay codes
 - contacts list with presence dots and unread badges
 - message feed with day separators, system events and honest send statuses
-  (sending → sent / queued / delivered / failed); compact feed mode
+  (sending → sent / queued; delivered only after a matched core ID; failed);
+  compact feed mode
 - history and API-gated search, pins, contact cards and chat deletion
 - formatting, reaction controls, files, avatars and calls
 - contact card and right-click menu with block/unblock; Escape closes
