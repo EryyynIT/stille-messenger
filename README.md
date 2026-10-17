@@ -8,8 +8,8 @@ Desktop GUI client for [shopot-core](https://github.com/Puxxalwl/shopot-core/) �
 a serverless P2P messaging engine with end-to-end encryption and forward secrecy.
 
 Built with [iced](https://github.com/iced-rs/iced) on the tiny-skia software
-renderer in Rust: dark TUI-derived palette, one accent color, honest send
-statuses, no fake delivery receipts.
+renderer in Rust: dark content-first palette, one accent color, honest send
+statuses, and no invented read receipts or presence.
 
 [README на русском](README.ru.md)
 
@@ -17,13 +17,15 @@ statuses, no fake delivery receipts.
 
 ## Status
 
-Current release: **v0.1.1** — the polish pass over v0.1.0 «Разговор». The
-client talks to a real `shopot serve` daemon over its binary frame API 1.0.0
+Published release: **v0.1.1**. The capabilities below describe current
+`main`, not the contents of that older release archive. Current main talks
+to a real `shopot serve` daemon over its binary frame API 2.2.0
 on a Unix domain socket (`$HOME/.shopot/api.sock`); `--mock` runs a built-in
 demo scene instead.
 
-Not production-ready: no message history, files, avatars or calls yet (they
-land in v0.2 and v0.3).
+The current client includes history, search, calls, formatting, reactions,
+files and avatars. Their restart and persistence semantics follow the core API;
+GUI memory is not a second store.
 
 Done so far:
 
@@ -35,17 +37,37 @@ Done so far:
 - contacts list with presence dots and unread badges
 - message feed with day separators, system events and honest send statuses
   (sending → sent / queued / delivered / failed); compact feed mode
-- contact card and right-click menu with block/unblock; Escape closes any
-  dialog
-- desktop notifications with a hide-text privacy setting on by default; the
-  chat open in the focused window stays silent
+- history and API-gated search, pins, contact cards and chat deletion
+- formatting, reaction controls, files, avatars and calls
+- contact card and right-click menu with block/unblock; Escape closes
+  dismissible dialogs, not an active call
+- desktop notifications via `notify-send`; message body hiding is on by
+  default, but the contact name is an external title and file notifications
+  currently include filename/size; the focused open chat stays silent
 - settings panel: notification text privacy, compact feed, font scale
   (80–150%)
 - keyboard control: Ctrl+1..9 jumps to a chat by its position in the list,
-  Ctrl+Q quits, Escape closes any dialog
+  Ctrl+Q quits, Escape closes dismissible dialogs
 - auto-growing composer with a send button
 - headless UI tests (`iced_test`) plus unit tests; CI runs fmt, clippy, tests,
   a release build and cargo-deny on every push
+
+Known limits: the chronological history window is at most 200 messages;
+search/pin scroll anchors and replies are not implemented. Settings and
+drafts are session-only; reactions are not restored from history. The GUI
+does not write message or contact content to disk or logs. This is not a
+guarantee about OS notification storage. Two-machine user acceptance, live
+bidirectional voice quality and complete accessibility checks remain open.
+
+### Design reference
+
+The desktop contract adapts content-first hierarchy, explicit states and
+measured validation from [Stille UI design (EN)](https://github.com/Puxxalwl/Stille-Messenger-Android/blob/main/docs/UI-DESIGN.md)
+and [RU](https://github.com/Puxxalwl/Stille-Messenger-Android/blob/main/ru/UI-DESIGN.md).
+It does not copy Android code, bottom tabs, swipe-only navigation, Back,
+ripple, 48dp units or motion blur. Shopot keeps opaque surfaces and its
+sidebar/conversation layout. This reference is provenance, not a second
+guideline or permission to add dependencies.
 
 ## Download
 
@@ -79,13 +101,16 @@ To meet someone, press «Пригласить» in the sidebar and press «Вы�
 you get a one-time invite code with a QR — hand it over out of band. To add
 a contact, paste their code into «Вставить чужой код» and press «Добавить»;
 the chat opens once both sides are known to the daemon. Right-click a contact
-to block or unblock them; Escape closes any dialog.
+to block or unblock them; Escape closes dismissible dialogs.
 
-Everything is reachable from the keyboard: Ctrl+1..9 opens the Nth chat from
-the list, Ctrl+Q quits, Escape closes any dialog. Incoming messages pop up
-as desktop notifications (`notify-send`) with the sender's name; the text is
-hidden unless you allow it in «Настройки» — the gear button in the title
-bar, which also holds the compact feed toggle and the font scale.
+Implemented shortcuts: Ctrl+1..9 opens the Nth chat from the list, Ctrl+Q
+quits, Escape closes dismissible dialogs (not an active call). Complete
+arrow/Tab traversal and visible focus-ring acceptance remain pending.
+Incoming messages pop up as desktop notifications (`notify-send`) with the
+sender's name; body text is hidden by default unless you allow it in
+«Настройки». File notifications currently include filename/size regardless of
+that setting. The button is in the title bar, which also holds the compact feed
+toggle and font scale.
 
 Meeting across the internet (different networks, different cities): a code
 without an address only works inside one LAN. The daemon prints
