@@ -83,6 +83,19 @@ cd shopot && ./run.sh
 `run.sh` creates your identity on first start, runs the daemon in the
 background and opens the client. Building from source is below.
 
+Local packaging prototypes are available for development, but are not part of
+remote releases yet. AppImage requires `appimagetool`; Flatpak requires
+`flatpak-builder` and the Freedesktop 24.08 runtime:
+
+```sh
+scripts/build_appimage.sh dev
+flatpak-builder --user --install build-flatpak \
+  packaging/flatpak/io.github.EryyynIT.shopot.yaml
+```
+
+The packaging layout is intentionally provisional until the product rename and
+visual redesign are complete.
+
 ## Build and run
 
 Requires a stable Rust toolchain and [Zig 0.17.0](https://ziglang.org/) for

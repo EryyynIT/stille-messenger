@@ -82,6 +82,19 @@ cd shopot && ./run.sh
 `run.sh` при первом запуске создаёт личность, поднимает демона в фоне и
 открывает клиент. Сборка из исходников — ниже.
 
+Локальные прототипы упаковки доступны для разработки, но пока не входят в
+удалённые релизы. Для AppImage нужен `appimagetool`, для Flatpak —
+`flatpak-builder` и runtime Freedesktop 24.08:
+
+```sh
+scripts/build_appimage.sh dev
+flatpak-builder --user --install build-flatpak \
+  packaging/flatpak/io.github.EryyynIT.shopot.yaml
+```
+
+Схема упаковки временная: после ренейминга и редизайна её нужно будет
+пересмотреть.
+
 ## Сборка и запуск
 
 Нужны стабильный Rust и [Zig 0.17.0](https://ziglang.org/) для демона.
