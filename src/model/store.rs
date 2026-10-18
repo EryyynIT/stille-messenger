@@ -63,6 +63,10 @@ pub struct Thread {
     pub session: Session,
     /// GET_HISTORY уже запрашивался: пустой ответ не перезапрашиваем.
     pub history_requested: bool,
+    /// История этого чата загружается.
+    pub history_loading: bool,
+    /// Ошибка последнего GET_HISTORY для показа в выбранном чате.
+    pub history_error: Option<String>,
     /// Сколько записей ядра загружено в ленту (для окна догрузки).
     pub history_loaded: u32,
     /// Сколько записей у ядра всего (total из ответа GET_HISTORY).
@@ -523,7 +527,22 @@ impl Store {
     /// GET_HISTORY запрошен: пустой ответ не перезапрашиваем при
     /// повторном открытии чата.
     pub fn mark_history_requested(&mut self, cid: Cid) {
-        self.threads.entry(cid).or_default().history_requested = true;
+        let thread = self.threads.entry(cid).or_default();
+        thread.history_requested = true;
+        thread.history_loading = true;
+        thread.history_error = None;
+    }
+
+    pub fn finish_history_request(&mut self, cid: Cid, error: Option<String>) {
+        let thread = self.threads.entry(cid).or_default();
+        thread.history_loading = false;
+        thread.history_error = error;
+    }
+
+    pub fn history_loading(&self, cid: Cid) -> bool {
+        self.threads
+            .get(&cid)
+            .is_some_and(|thread| thread.history_loading)
     }
 
     pub fn history_requested(&self, cid: Cid) -> bool {
@@ -546,6 +565,12 @@ impl Store {
         };
         thread.history_loaded < thread.history_total
             && thread.history_loaded < crate::core_link::HISTORY_MAX_LIMIT
+    }
+
+    pub fn history_error(&self, cid: Cid) -> Option<&str> {
+        self.threads
+            .get(&cid)
+            .and_then(|thread| thread.history_error.as_deref())
     }
 
     /// Ответ GET_HISTORY: записи дописываются В НАЧАЛО ленты (окно ядра —
