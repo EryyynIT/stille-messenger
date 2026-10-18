@@ -1,0 +1,18 @@
+#!/bin/sh
+# Точка входа AppImage: демон из этого же образа в фоне, окно клиента
+# на переднем плане; при закрытии окна демон гасится. Как run.sh архива,
+# но пути — от $APPDIR (образ смонтирован read-only, cd туда нельзя).
+set -e
+
+export PATH="$APPDIR/usr/bin:$PATH"
+
+# init на повторном запуске не нужен, но и не вредит: демону нужна личность.
+shopot init 2>/dev/null || true
+shopot serve &
+daemon_pid=$!
+
+# UdsLink переподключается сам, но сокет пусть успеет открыться.
+sleep 0.3
+shopot-gui || true
+
+kill "$daemon_pid" 2>/dev/null || true
