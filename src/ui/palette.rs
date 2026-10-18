@@ -29,7 +29,11 @@ pub const MUTED: Color = Color::from_rgb8(0x98, 0x98, 0x9F);
 /// Приглушённая графика; прежний цвет размера файла на синем пузыре.
 pub const DIM: Color = Color::from_rgb8(0x63, 0x63, 0x6B);
 /// Единственный акцент: синий iOS, он же пузырь моих сообщений.
-pub const ACCENT: Color = Color::from_rgb8(0x0A, 0x84, 0xFF);
+pub const ACCENT: Color = Color::from_rgb8(0x00, 0x6B, 0xD2);
+/// Белые метаданные проходят WCAG AA на акцентном пузыре.
+pub const ACCENT_METADATA: Color = Color::WHITE;
+pub const PAPERCLIP_SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#98989F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-8.8 8.8a1.85 1.85 0 0 1-2.6-2.6l8.1-8.1"/></svg>"##;
+
 /// Семантика: онлайн / успех.
 pub const OK: Color = Color::from_rgb8(0x30, 0xD1, 0x58);
 /// Семантика: предупреждение, звонок (позже).
@@ -356,6 +360,18 @@ mod tests {
         let (fg, bg) = (luminance(foreground), luminance(background));
         let contrast = (fg.max(bg) + 0.05) / (fg.min(bg) + 0.05);
         assert!(contrast >= 4.5, "контраст {contrast:.2}:1 ниже WCAG AA");
+    }
+
+    #[test]
+    fn metadata_meets_aa_on_outgoing_bubble() {
+        assert_aa(ACCENT_METADATA, ACCENT);
+    }
+
+    #[test]
+    fn paperclip_svg_uses_palette_color() {
+        assert!(String::from_utf8(PAPERCLIP_SVG.to_vec())
+            .expect("SVG is UTF-8")
+            .contains("#98989F"));
     }
 
     #[test]
