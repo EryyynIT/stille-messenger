@@ -144,10 +144,36 @@ pub fn date_sep(ts_ms: i64, scale: f32) -> Element<'static, Message> {
     .into()
 }
 
-/// Служебная строка ядра: цветом WARN — событие важное для безопасности
-/// и не должно сливаться с разделителями дат.
+pub fn history_note(body: String, scale: f32) -> Element<'static, Message> {
+    container(text(body).size(12.0 * scale).color(palette::MUTED))
+        .width(Length::Fill)
+        .align_x(Horizontal::Center)
+        .padding(12)
+        .into()
+}
+
+pub fn history_error(body: String, scale: f32) -> Element<'static, Message> {
+    container(
+        column![
+            text(format!("История не загрузилась: {body}"))
+                .size(12.0 * scale)
+                .color(palette::ERR),
+            button(text("Повторить").size(12.0 * scale).color(palette::TEXT))
+                .padding([6, 12])
+                .style(palette::button_dim)
+                .on_press(Message::Chat(ChatIn::RetryHistory)),
+        ]
+        .spacing(8)
+        .align_x(Horizontal::Center),
+    )
+    .width(Length::Fill)
+    .padding(12)
+    .into()
+}
+
+/// Служебные строки используют нейтральный цвет; ошибки имеют отдельный стиль.
 pub fn sys_line(body: String, scale: f32) -> Element<'static, Message> {
-    container(text(body).size(11.0 * scale).color(palette::WARN))
+    container(text(body).size(11.0 * scale).color(palette::MUTED))
         .width(Length::Fill)
         .align_x(Horizontal::Center)
         .padding(Padding {
@@ -1298,14 +1324,13 @@ pub fn settings_panel<'a>(
             )
     };
 
-    // Имя профиля (§4.4): ядро кладёт его в нашу визитку; без имени
-    // карточка уходит с дефолтом «shopot» — про это честная подсказка.
+    // Ядро может подставить собственный default, но GUI не обещает его.
     let name_len = view.name_input.trim().chars().count();
     let name_ok = (1..=32).contains(&name_len);
     let name_note = view.note.clone().or_else(|| {
         Some(match profile_name {
             Some(name) => format!("Сейчас задано: {name}"),
-            None => "Без имени визитка уходит с именем «shopot».".to_owned(),
+            None => "Имя не задано".to_owned(),
         })
     });
 
@@ -1736,7 +1761,7 @@ fn body_spans(body: &str, entities: &[Entity], revealed: bool) -> Vec<Span<'stat
 
 fn file_metadata_color(mine: bool, compact: bool, body_len: usize) -> iced::Color {
     if mine && !compact && body_len <= 300 {
-        palette::DIM
+        palette::ACCENT_METADATA
     } else {
         palette::MUTED
     }
@@ -1758,7 +1783,10 @@ mod tests {
     #[test]
     fn file_metadata_color_follows_rendered_surface() {
         assert_eq!(file_metadata_color(false, false, 8), palette::MUTED);
-        assert_eq!(file_metadata_color(true, false, 8), palette::DIM);
+        assert_eq!(
+            file_metadata_color(true, false, 8),
+            palette::ACCENT_METADATA
+        );
         assert_eq!(file_metadata_color(true, true, 8), palette::MUTED);
         assert_eq!(file_metadata_color(true, false, 301), palette::MUTED);
     }

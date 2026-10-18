@@ -137,6 +137,8 @@ pub enum ChatIn {
     UnpinMessage(CoreMsgId),
     /// Открыть список закреплённых сообщений (плашка под шапкой).
     OpenPins,
+    /// Повторить неудачный GET_HISTORY.
+    RetryHistory,
     /// Лента прокручена; `true` — докатились до верха: догрузить более
     /// старые сообщения (S6; окно GET_HISTORY растёт от загруженного
     /// до потолка ядра).
@@ -985,11 +987,15 @@ fn on_link<L: CoreLink>(state: &mut State<L>, link: LinkIn) -> Task<Message> {
             // трогаем — пользователь читает то же место (S6).
             (Request::History { cid, .. }, Ok(OkReply::History { total, records })) => {
                 state.history_in_flight = false;
+                state.store.finish_history_request(cid, None);
                 state.store.load_history(cid, total, &records);
                 Task::none()
             }
-            (Request::History { .. }, Err(_)) => {
+            (Request::History { cid, .. }, Err(err)) => {
                 state.history_in_flight = false;
+                state
+                    .store
+                    .finish_history_request(cid, Some(err.user_text()));
                 Task::none()
             }
             // Бутстрап-зонд: версия API демона гейтит ядерные фичи
@@ -1325,6 +1331,20 @@ fn on_chat<L: CoreLink>(state: &mut State<L>, chat: ChatIn) -> Task<Message> {
                 },
             )
         }
+        ChatIn::RetryHistory => {
+            let Some(cid) = state.store.selected() else {
+                return Task::none();
+            };
+            state.store.mark_history_requested(cid);
+            state.history_in_flight = true;
+            request_task(
+                state,
+                Request::History {
+                    cid,
+                    limit: HISTORY_LOAD,
+                },
+            )
+        }
         ChatIn::ScrollTop(at_top) => {
             if at_top {
                 load_older(state)
@@ -1602,6 +1622,7 @@ fn load_older<L: CoreLink>(state: &mut State<L>) -> Task<Message> {
     }
     let limit =
         (state.store.history_loaded(cid) + HISTORY_LOAD).min(crate::core_link::HISTORY_MAX_LIMIT);
+    state.store.mark_history_requested(cid);
     state.history_in_flight = true;
     request_task(state, Request::History { cid, limit })
 }
@@ -2533,6 +2554,19 @@ fn feed_view<L: CoreLink>(state: &State<L>, cid: Cid) -> Element<'_, Message> {
         bottom: 8.0,
         left: 12.0,
     });
+    if let Some(error) = state.store.history_error(cid) {
+        list = list.push(widgets::history_error(error.to_owned(), scale));
+    } else if state.store.history_loading(cid) {
+        list = list.push(widgets::history_note(
+            "Загружается история…".to_owned(),
+            scale,
+        ));
+    } else if items.is_empty() && state.store.history_requested(cid) {
+        list = list.push(widgets::history_note(
+            "Пока сообщений нет".to_owned(),
+            scale,
+        ));
+    }
     for item in items {
         match item {
             FeedItem::DateSep { ts_ms } => list = list.push(widgets::date_sep(ts_ms, scale)),
@@ -2592,11 +2626,12 @@ fn composer<L: CoreLink>(state: &State<L>) -> Element<'_, Message> {
     // Вложение (S10): выбор файла — нативный диалог, ядро читает путь.
     // Иконка — SVG: глиф эмодзи в рендере не красится (COLRv1), а
     // пустая кнопка выглядит сломанной.
-    const PAPERCLIP: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#98989F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-8.8 8.8a1.85 1.85 0 0 1-2.6-2.6l8.1-8.1"/></svg>"##;
     let attach = button(
-        iced::widget::svg(iced::widget::svg::Handle::from_memory(PAPERCLIP))
-            .width(18.0 * scale)
-            .height(18.0 * scale),
+        iced::widget::svg(iced::widget::svg::Handle::from_memory(
+            palette::PAPERCLIP_SVG,
+        ))
+        .width(18.0 * scale)
+        .height(18.0 * scale),
     )
     .padding(Padding {
         top: 8.0,
@@ -2848,6 +2883,7 @@ mod tests {
         state.store.replace_contacts(vec![contact(1, "Аня")]);
         let _ = update(&mut state, Message::Chat(ChatIn::Select(Cid(1))));
         assert!(state.store.history_requested(Cid(1)), "история запрошена");
+        assert!(state.store.history_loading(Cid(1)));
         assert!(state.history_in_flight);
 
         let record = |n: u8, ts: i64, text: &str| crate::core_link::HistoryMsg {
@@ -2874,6 +2910,8 @@ mod tests {
             history_reply(vec![record(1, 1000, "раз"), record(2, 2000, "два")]),
         );
         assert!(!state.history_in_flight);
+        assert!(!state.store.history_loading(Cid(1)));
+        assert_eq!(state.store.history_error(Cid(1)), None);
         let msgs = &state.store.thread(Cid(1)).unwrap().msgs;
         assert_eq!(msgs.len(), 2, "лента восстановлена");
         assert!(state.store.has_more_history(Cid(1)));
@@ -2898,6 +2936,58 @@ mod tests {
         // Скролл не у верха глушится сразу.
         let _ = update(&mut state, Message::Chat(ChatIn::ScrollTop(false)));
         assert!(!state.history_in_flight);
+    }
+
+    #[test]
+    fn history_loading_empty_error_and_retry_are_explicit() {
+        let mut state = state();
+        state
+            .store
+            .replace_contacts(vec![contact(1, "Аня"), contact(2, "Борис")]);
+        let _ = update(&mut state, Message::Chat(ChatIn::Select(Cid(1))));
+        let mut ui = render(&state);
+        assert!(ui.find("Загружается история…").is_ok());
+        drop(ui);
+
+        let request = Request::History {
+            cid: Cid(1),
+            limit: HISTORY_LOAD,
+        };
+        let _ = update(
+            &mut state,
+            Message::Link(LinkIn::Replied {
+                request,
+                reply: Ok(OkReply::History {
+                    total: 0,
+                    records: vec![],
+                }),
+                tag: None,
+            }),
+        );
+        let mut ui = render(&state);
+        assert!(ui.find("Пока сообщений нет").is_ok());
+        drop(ui);
+
+        let _ = update(&mut state, Message::Chat(ChatIn::Select(Cid(2))));
+        let _ = update(
+            &mut state,
+            Message::Link(LinkIn::Replied {
+                request: Request::History {
+                    cid: Cid(2),
+                    limit: HISTORY_LOAD,
+                },
+                reply: Err(LinkError::BadFrame("test error")),
+                tag: None,
+            }),
+        );
+        let mut ui = render(&state);
+        assert!(ui
+            .find("История не загрузилась: Несовместимая версия. Обновите приложение.")
+            .is_ok());
+        assert!(ui.find("Повторить").is_ok());
+        drop(ui);
+        let _ = update(&mut state, Message::Chat(ChatIn::RetryHistory));
+        assert!(state.store.history_loading(Cid(2)));
     }
 
     /// Ctrl+F: панель открывается только при выбранном чате, ввод
@@ -4006,11 +4096,7 @@ mod tests {
         assert!(matches!(state.overlay, Overlay::Settings(_)));
         {
             let mut ui = render(&state);
-            assert!(
-                ui.find("Без имени визитка уходит с именем «shopot».")
-                    .is_ok(),
-                "подсказка, зачем имя"
-            );
+            assert!(ui.find("Имя не задано").is_ok(), "подсказка, зачем имя");
         }
 
         let _ = update(
