@@ -465,6 +465,7 @@ pub fn invite_panel(view: &InviteView, scale: f32) -> Element<'_, Message> {
     body = body.push(text("Адрес").size(11.0 * scale).color(palette::MUTED));
     body = body.push(
         text_input("192.168.1.5:7777 — необязательно", &view.addr)
+            .id(view.addr_id.clone())
             .on_input(|value| Message::Meet(MeetIn::AddrInput(value)))
             .size(12.0 * scale)
             .padding(8)
@@ -1183,6 +1184,7 @@ pub fn settings_panel<'a>(
                 .color(palette::TEXT),
             row![
                 text_input("Как вас видят получатели визитки", &view.name_input)
+                    .id(view.input_id.clone())
                     .on_input(|value| Message::Settings(SettingsIn::NameInput(value)))
                     .on_submit(Message::Settings(SettingsIn::SaveName))
                     .size(13.0 * scale)

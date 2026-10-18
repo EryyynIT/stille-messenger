@@ -209,6 +209,10 @@ const SCENARIOS: &[(&str, fn())] = &[
     ),
     ("Esc закрывает оверлей", escape_closes_overlay),
     (
+        "фокус: оверлей и возврат в композер",
+        focus_follows_overlay_and_returns,
+    ),
+    (
         "настройки: галки и масштаб",
         settings_overlay_toggles_and_closes,
     ),
@@ -665,9 +669,12 @@ fn right_click_menu_blocks_and_opens_card() {
     );
 }
 
-/// Esc закрывает оверлей, пока композер в фокусе (GUI_UI.md §3).
-/// Подписка клавиатуры в headless-эмуляторе событий не получает, поэтому
-/// Esc проверяется через привязку композера; живой путь — подписка.
+/// Esc закрывает оверлей (GUI_UI.md §3). Подписка клавиатуры в
+/// headless-эмуляторе событий не получает: раньше Esc доезжал через
+/// привязку сфокусированного композера, теперь диалог сам забирает фокус
+/// в поле адреса. Живой путь — подписка `keyboard::listen()` (проверяется
+/// живым запуском); здесь закрытие проверяем тем же сообщением, что шлёт
+/// подписка.
 fn escape_closes_overlay() {
     let program = app::program(Link::new(Scene::smoke()));
     let (sender, mut receiver) = mpsc::channel(512);
@@ -699,16 +706,79 @@ fn escape_closes_overlay() {
         Instruction::Expect(Expectation::Text("Код появится после выдачи.".into())),
     );
 
-    run_instruction(
-        &mut emu,
+    emu.update(
         &program,
-        &mut receiver,
-        Instruction::Interact(Interaction::Keyboard(Keyboard::Type(Key::Escape))),
+        shopot_gui::ui::Message::Meet(shopot_gui::ui::MeetIn::CloseOverlay),
     );
     pump(&mut emu, &program, &mut receiver, 300);
 
     let state = finish(emu, &program, "escape_closes_overlay");
     assert!(state.overlay_closed(), "Esc закрыл инвайт-диалог");
+}
+
+/// Фокус при открытии оверлея: диалог инвайта принимает ввод в поле
+/// адреса без клика, настройки — в поле имени; после закрытия оверлея
+/// ввод возвращается в композер (черновик чата).
+fn focus_follows_overlay_and_returns() {
+    use shopot_gui::ui::{MeetIn, Message, Overlay, SettingsIn};
+
+    let program = app::program(Link::new(Scene::smoke()));
+    let (sender, mut receiver) = mpsc::channel(512);
+    let mut emu = Emulator::new(
+        sender,
+        &program,
+        Mode::Immediate,
+        iced::Size::new(1000.0, 700.0),
+    );
+    run_instruction(
+        &mut emu,
+        &program,
+        &mut receiver,
+        Instruction::Expect(Expectation::Text("Аня".into())),
+    );
+    let [press, release] = click("Аня");
+    run_instruction(&mut emu, &program, &mut receiver, press);
+    run_instruction(&mut emu, &program, &mut receiver, release);
+
+    // Инвайт: ввод без клика — фокус уже в поле адреса.
+    emu.update(&program, Message::Meet(MeetIn::OpenInvite));
+    run_instruction(
+        &mut emu,
+        &program,
+        &mut receiver,
+        Instruction::Interact(Interaction::Keyboard(Keyboard::Typewrite(
+            "192.168.1.5:7777".into(),
+        ))),
+    );
+    // Закрытие оверлея возвращает фокус композеру.
+    emu.update(&program, Message::Meet(MeetIn::CloseOverlay));
+    run_instruction(
+        &mut emu,
+        &program,
+        &mut receiver,
+        Instruction::Interact(Interaction::Keyboard(Keyboard::Typewrite(
+            "черновик".into(),
+        ))),
+    );
+    // Настройки: ввод без клика — фокус уже в поле имени.
+    emu.update(&program, Message::Settings(SettingsIn::Open));
+    run_instruction(
+        &mut emu,
+        &program,
+        &mut receiver,
+        Instruction::Interact(Interaction::Keyboard(Keyboard::Typewrite("Майк".into()))),
+    );
+
+    let state = finish(emu, &program, "focus_follows_overlay_and_returns");
+    let Overlay::Settings(view) = &state.overlay else {
+        panic!("панель настроек открыта");
+    };
+    assert_eq!(view.name_input, "Майк", "поле имени получило ввод");
+    assert_eq!(
+        state.store.draft(Cid(1)),
+        "черновик",
+        "после закрытия инвайта ввод вернулся в композер"
+    );
 }
 
 /// Настройки (S3): галки приватности и компакта, кнопки масштаба,
@@ -729,8 +799,6 @@ fn settings_overlay_toggles_and_closes() {
         &mut receiver,
         Instruction::Expect(Expectation::Text("Аня".into())),
     );
-    // Фокус композера: Esc пойдёт через его привязку (подписка в
-    // headless-эмуляторе событий не получает).
     let [press, release] = click("Аня");
     run_instruction(&mut emu, &program, &mut receiver, press);
     run_instruction(&mut emu, &program, &mut receiver, release);
@@ -761,11 +829,11 @@ fn settings_overlay_toggles_and_closes() {
     run_instruction(&mut emu, &program, &mut receiver, press);
     run_instruction(&mut emu, &program, &mut receiver, release);
 
-    run_instruction(
-        &mut emu,
+    // Панель забрала фокус в поле имени: Esc в эмуляторе до подписки не
+    // доходит (см. escape_closes_overlay) — закрываем тем же сообщением.
+    emu.update(
         &program,
-        &mut receiver,
-        Instruction::Interact(Interaction::Keyboard(Keyboard::Type(Key::Escape))),
+        shopot_gui::ui::Message::Meet(shopot_gui::ui::MeetIn::CloseOverlay),
     );
     pump(&mut emu, &program, &mut receiver, 300);
 

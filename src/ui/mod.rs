@@ -249,12 +249,24 @@ pub enum Overlay {
 
 /// Стейт панели настроек: черновик имени профиля (S13.1) и итог
 /// последнего сохранения — строкой под полем.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SettingsView {
+    /// Фокус поля имени при открытии панели.
+    pub input_id: iced::widget::Id,
     /// Черновик имени (SET_NAME, §4.4).
     pub name_input: String,
     /// «Имя сохранено…» / «Имя не сохранено: …» — честный итог.
     pub note: Option<String>,
+}
+
+impl Default for SettingsView {
+    fn default() -> Self {
+        Self {
+            input_id: iced::widget::Id::unique(),
+            name_input: String::new(),
+            note: None,
+        }
+    }
 }
 
 /// Панель поиска: запрос живёт здесь; совпадения — либо из Store
@@ -279,6 +291,8 @@ pub struct SearchView {
 
 /// Инвайт-диалог: мой код и чужой код (GUI_UI.md §1).
 pub struct InviteView {
+    /// Фокус поля адреса при открытии диалога.
+    pub addr_id: iced::widget::Id,
     /// Код ядра (CREATE_INVITE); на экране — начало и хвост, полный — в QR.
     pub code: Option<String>,
     /// QR по коду; строится один раз при ответе ядра.
@@ -606,8 +620,11 @@ fn on_window<L: CoreLink>(state: &mut State<L>, window: WindowIn) -> Task<Messag
 fn on_settings<L: CoreLink>(state: &mut State<L>, settings: SettingsIn) -> Task<Message> {
     match settings {
         SettingsIn::Open => {
-            state.overlay = Overlay::Settings(SettingsView::default());
-            Task::none()
+            let view = SettingsView::default();
+            let input_id = view.input_id.clone();
+            state.overlay = Overlay::Settings(view);
+            // Поле имени — первый вводимый параметр панели.
+            operation::focus::<Message>(input_id)
         }
         SettingsIn::NameInput(value) => {
             if let Overlay::Settings(view) = &mut state.overlay {
@@ -1520,7 +1537,9 @@ fn load_older<L: CoreLink>(state: &mut State<L>) -> Task<Message> {
 fn on_meet<L: CoreLink>(state: &mut State<L>, meet: MeetIn) -> Task<Message> {
     match meet {
         MeetIn::OpenInvite => {
+            let addr_id = iced::widget::Id::unique();
             state.overlay = Overlay::Invite(Box::new(InviteView {
+                addr_id: addr_id.clone(),
                 code: None,
                 qr: None,
                 error: None,
@@ -1529,6 +1548,9 @@ fn on_meet<L: CoreLink>(state: &mut State<L>, meet: MeetIn) -> Task<Message> {
                 addr: String::new(),
                 relay: false,
             }));
+            // Адрес — первый вводимый параметр диалога; клавиатурный путь
+            // начинается с него, без изменения поведения ядра.
+            let focus = operation::focus::<Message>(addr_id);
             // Кэш LAN-кода: не тратим слот реестра приглашений.
             if let Some(code) = state.invite_code.clone() {
                 if let Overlay::Invite(view) = &mut state.overlay {
@@ -1536,7 +1558,7 @@ fn on_meet<L: CoreLink>(state: &mut State<L>, meet: MeetIn) -> Task<Message> {
                     view.qr = qr_of(&code);
                 }
             }
-            Task::none()
+            focus
         }
         MeetIn::AddrInput(text) => {
             if let Overlay::Invite(view) = &mut state.overlay {
@@ -1679,7 +1701,9 @@ fn on_meet<L: CoreLink>(state: &mut State<L>, meet: MeetIn) -> Task<Message> {
                 None => {}
             }
             state.overlay = Overlay::None;
-            Task::none()
+            // Клавиатура возвращается в композер: после закрытия оверлея
+            // следующий ввод не должен пропасть.
+            operation::focus::<Message>(state.composer_id.clone())
         }
     }
 }
