@@ -22,7 +22,7 @@ use iced::widget::text::Span;
 use iced::Font;
 
 use crate::core_link::{Entity, EntityKind};
-use crate::model::msg::{MsgId, Reaction};
+use crate::model::msg::{CoreMsgId, MsgId, Reaction};
 use crate::ui::{
     time_hm, CallIn, CallPhase, CallView, ChatIn, InviteView, MeetIn, MenuView, Message,
     SearchView, SettingsIn, SettingsView,
@@ -187,6 +187,95 @@ fn group_footer(
     foot.into()
 }
 
+/// Детерминированный id строки сообщения: операция прокрутки (S16)
+/// находит её в дереве по этому id после раскладки.
+pub fn msg_target_id(id: MsgId) -> iced::widget::Id {
+    iced::widget::Id::from(format!("jump:{}", id.0))
+}
+
+/// Операция «прокрутить ленту к сообщению» (S16). iced 0.14 не имеет
+/// scroll-into-view: измеряем на кадре после раскладки — viewport ленты
+/// и текущий offset (обратный вызов `scrollable`), положение строки
+/// (`container` с id-меткой) — и отвечаем абсолютным offset'ом, при
+/// котором строка оказывается у верха вьюпорта. Перемотку делает update
+/// через `operation::scroll_to`.
+pub struct MeasureJump {
+    feed: iced::widget::Id,
+    target: iced::widget::Id,
+    viewport: Option<iced::Rectangle>,
+    offset: Option<f32>,
+    target_bounds: Option<iced::Rectangle>,
+}
+
+impl MeasureJump {
+    pub fn new(feed: iced::widget::Id, target: iced::widget::Id) -> Self {
+        Self {
+            feed,
+            target,
+            viewport: None,
+            offset: None,
+            target_bounds: None,
+        }
+    }
+}
+
+impl iced::advanced::widget::Operation<Option<f32>> for MeasureJump {
+    fn traverse(
+        &mut self,
+        operate: &mut dyn FnMut(&mut dyn iced::advanced::widget::Operation<Option<f32>>),
+    ) {
+        operate(self);
+    }
+
+    fn container(&mut self, id: Option<&iced::widget::Id>, bounds: iced::Rectangle) {
+        if id == Some(&self.target) {
+            self.target_bounds = Some(bounds);
+        }
+    }
+
+    fn scrollable(
+        &mut self,
+        id: Option<&iced::widget::Id>,
+        bounds: iced::Rectangle,
+        _content_bounds: iced::Rectangle,
+        translation: iced::Vector,
+        _state: &mut dyn iced::advanced::widget::operation::scrollable::Scrollable,
+    ) {
+        if id == Some(&self.feed) {
+            self.viewport = Some(bounds);
+            self.offset = Some(translation.y);
+        }
+    }
+
+    fn finish(&self) -> iced::advanced::widget::operation::Outcome<Option<f32>> {
+        use iced::advanced::widget::operation::Outcome;
+        // Координаты строки — оконные; позиция в контенте ленты: отступ
+        // от верха вьюпорта плюс текущая прокрутка. None — строка не
+        // нашлась в дереве (не должно случаться: цель загружена).
+        Outcome::Some(match (self.viewport, self.offset, self.target_bounds) {
+            (Some(viewport), Some(offset), Some(target)) => {
+                let content_y = target.y - viewport.y + offset;
+                // Небольшой воздух сверху, чтобы строка не липла к краю.
+                Some((content_y - 8.0).max(0.0))
+            }
+            _ => None,
+        })
+    }
+}
+
+/// Тело сообщения с id-меткой и подсветкой цели перехода (S16).
+fn target_row(
+    inner: Element<'static, Message>,
+    msg_id: MsgId,
+    highlight: Option<MsgId>,
+) -> Element<'static, Message> {
+    let mut row = container(inner).id(msg_target_id(msg_id));
+    if highlight == Some(msg_id) {
+        row = row.style(palette::jump_highlight);
+    }
+    row.into()
+}
+
 /// Обёртка строки группы: ширина ленты, отступ, выравнивание.
 fn wrap_row(
     inner: iced::Element<'static, Message>,
@@ -213,6 +302,7 @@ pub fn message_group(
     group: &FeedItem,
     scale: f32,
     revealed: &HashSet<MsgId>,
+    highlight: Option<MsgId>,
 ) -> Vec<Element<'static, Message>> {
     let FeedItem::Group {
         mine,
@@ -279,6 +369,8 @@ pub fn message_group(
                 area.into()
             }
         };
+        // Id-метка для прокрутки к сообщению и подсветка цели (S16).
+        let body_text = target_row(body_text, *msg_id, highlight);
 
         // Длинные тексты — без пузыря, на всю ширину (GUI_STYLE.md §2).
         if body.len() > 300 {
@@ -336,6 +428,7 @@ pub fn compact_group(
     group: &FeedItem,
     scale: f32,
     revealed: &HashSet<MsgId>,
+    highlight: Option<MsgId>,
 ) -> Vec<Element<'static, Message>> {
     let FeedItem::Group {
         mine,
@@ -381,6 +474,8 @@ pub fn compact_group(
                 area.into()
             }
         };
+        // Id-метка для прокрутки к сообщению и подсветка цели (S16).
+        let content = target_row(content, *msg_id, highlight);
         col = col.push(container(content).padding(Padding {
             left: indent,
             ..Padding::default()
@@ -981,8 +1076,16 @@ pub fn pins_bar(count: usize, preview: Option<&str>, scale: f32) -> Element<'sta
 }
 
 /// Список закреплённых сообщений (S12): время, тело, «Открепить».
-/// Записи без тела (GET_MESSAGE ещё в пути) не показываются.
-pub fn pins_panel(entries: &[PinEntry], scale: f32) -> Element<'static, Message> {
+/// Записи без тела (GET_MESSAGE ещё в пути) не показываются. Клик по
+/// строке ведёт к сообщению в ленте, если оно загружено (S16); иначе
+/// строка без действия с честной пометкой. `loaded` — msg_id ядра,
+/// которые уже есть в загруженной ленте чата.
+pub fn pins_panel(
+    entries: &[PinEntry],
+    loaded: &HashSet<CoreMsgId>,
+    cid: Cid,
+    scale: f32,
+) -> Element<'static, Message> {
     let mut list = column![text("Закреплённые сообщения")
         .size(16.0 * scale)
         .font(palette::bold())
@@ -991,16 +1094,37 @@ pub fn pins_panel(entries: &[PinEntry], scale: f32) -> Element<'static, Message>
     let resolved = entries.iter().filter(|p| p.body.is_some()).count();
     for entry in entries {
         let Some(body) = &entry.body else { continue };
+        let info = column![
+            text(time_hm(entry.ts_ms))
+                .size(10.0 * scale)
+                .color(palette::MUTED),
+            text(body.clone()).size(13.0 * scale).color(palette::TEXT),
+        ]
+        .spacing(1)
+        .width(Length::Fill);
+        let info: Element<'static, Message> = if loaded.contains(&entry.msg_id) {
+            button(info)
+                .width(Length::Fill)
+                .padding(4)
+                .style(palette::button_plain)
+                .on_press(Message::Chat(ChatIn::JumpTo {
+                    cid,
+                    key: JumpKey::Core(entry.msg_id),
+                }))
+                .into()
+        } else {
+            column![
+                info,
+                text("ещё не загружено — поднимите ленту выше")
+                    .size(10.0 * scale)
+                    .color(palette::MUTED),
+            ]
+            .spacing(2)
+            .into()
+        };
         list = list.push(
             row![
-                column![
-                    text(time_hm(entry.ts_ms))
-                        .size(10.0 * scale)
-                        .color(palette::MUTED),
-                    text(body.clone()).size(13.0 * scale).color(palette::TEXT),
-                ]
-                .spacing(1)
-                .width(Length::Fill),
+                info,
                 button(text("Открепить").size(11.0 * scale).color(palette::MUTED))
                     .padding(Padding {
                         top: 4.0,
@@ -1015,9 +1139,21 @@ pub fn pins_panel(entries: &[PinEntry], scale: f32) -> Element<'static, Message>
             .align_y(iced::alignment::Vertical::Center),
         );
     }
-    if resolved < entries.len() {
+    let failed = entries
+        .iter()
+        .filter(|p| p.failed && p.body.is_none())
+        .count();
+    let loading = entries.len() - resolved - failed;
+    if loading > 0 {
         list = list.push(
             text(format!("Загружается: {} из {}", resolved, entries.len()))
+                .size(11.0 * scale)
+                .color(palette::MUTED),
+        );
+    }
+    if failed > 0 {
+        list = list.push(
+            text(format!("Не загрузилось: {failed}"))
                 .size(11.0 * scale)
                 .color(palette::MUTED),
         );
@@ -1267,6 +1403,15 @@ pub fn settings_panel<'a>(
 /// Сколько совпадений показывать в локальном режиме; остаток — строкой-хвостом.
 const SEARCH_SHOW: usize = 50;
 
+/// Куда ведёт клик по совпадению или закрепу (S16): локальный id уже
+/// загруженного сообщения или msg_id ядра (решается в update — лента
+/// могла подгрузить окно после сборки строк).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JumpKey {
+    Local(MsgId),
+    Core(CoreMsgId),
+}
+
 /// Строка совпадения панели поиска: ядерного (S11) или локального (S6).
 pub struct SearchRow {
     pub ts_ms: i64,
@@ -1274,12 +1419,15 @@ pub struct SearchRow {
     pub body: String,
     /// Имя чата — только глобальный поиск (S11).
     pub chat: Option<String>,
+    /// Цель перехода: чат + ключ сообщения.
+    pub jump: (Cid, JumpKey),
 }
 
 /// Панель Ctrl+F (S6/S11): запрос + совпадения. Ядерный режим (API 2.1+)
 /// ищет по всей истории через демон: постраничная догрузка и скоп «все
 /// чаты»; локальный (ядро 1.x) — по загруженной ленте. Клик по совпадению
-/// закрывает панель; переход к сообщению — со scroll-анкорами, отложено.
+/// ведёт к сообщению, если оно уже в загруженной ленте (S16); иначе
+/// панель остаётся с честным пояснением.
 pub fn search_panel<'a>(
     view: &'a SearchView,
     kernel: bool,
@@ -1351,7 +1499,10 @@ pub fn search_panel<'a>(
                         left: 8.0,
                     })
                     .style(palette::button_plain)
-                    .on_press(Message::Meet(MeetIn::CloseOverlay)),
+                    .on_press(Message::Chat(ChatIn::JumpTo {
+                        cid: hit.jump.0,
+                        key: hit.jump.1,
+                    })),
             );
         }
         if kernel {

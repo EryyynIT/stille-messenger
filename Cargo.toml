@@ -19,6 +19,9 @@ iced = { version = "0.14", default-features = false, features = [
     "qr_code",
     "svg",
     "image",
+    # Переход к сообщению (S16): `advanced::widget::operate` для операции
+    # измерения позиции строки в ленте — iced не имеет scroll-into-view.
+    "advanced",
 ] }
 tokio = { version = "1", default-features = false, features = ["sync", "time", "macros", "rt", "net", "io-util", "process"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

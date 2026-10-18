@@ -121,6 +121,14 @@ pub enum ChatIn {
     SearchScope(bool),
     /// «Показать ещё»: следующая страница совпадений (offset растёт).
     SearchMore,
+    /// Клик по совпадению поиска или закрепу: перейти к сообщению в
+    /// ленте, если оно уже загружено (S16).
+    JumpTo {
+        cid: Cid,
+        key: widgets::JumpKey,
+    },
+    /// Операция измерила позицию цели; Some — прокрутить ленту к ней.
+    JumpMeasured(Option<f32>),
     /// ПКМ по строке ленты — меню сообщения (S12).
     OpenMsgMenu(MsgId),
     /// Закрепить сообщение из меню пузыря (PIN_MESSAGE, ядро 2.2+).
@@ -287,6 +295,10 @@ pub struct SearchView {
     pub answered: Option<(String, bool, Option<Cid>)>,
     /// Ошибка поиска — текст для пользователя (TEXT_STYLE §3).
     pub error: Option<String>,
+    /// Пояснение к переходу (S16): совпадение найдено ядром, но сообщения
+    /// ещё нет в загруженной ленте. Не скрывает список, в отличие от
+    /// ошибки поиска.
+    pub note: Option<String>,
 }
 
 /// Инвайт-диалог: мой код и чужой код (GUI_UI.md §1).
@@ -352,6 +364,9 @@ pub struct State<L: CoreLink> {
     /// Раскрытые спойлеры (S14): набор MsgId. Не переживает перезапуск —
     /// как и черновики; спойлер снова скрыт.
     pub revealed_spoilers: std::collections::HashSet<MsgId>,
+    /// Подсвеченная цель перехода из поиска/закрепов (S16); сбрасывается
+    /// при выборе другого чата.
+    pub highlight: Option<MsgId>,
 }
 
 impl<L: CoreLink> State<L> {
@@ -372,6 +387,7 @@ impl<L: CoreLink> State<L> {
             profile_name: None,
             call_audio: None,
             revealed_spoilers: std::collections::HashSet::new(),
+            highlight: None,
         }
     }
 
@@ -1030,6 +1046,18 @@ fn on_link<L: CoreLink>(state: &mut State<L>, link: LinkIn) -> Task<Message> {
                 state.store.fill_pin(cid, msg_id, ts_ms, mine, text);
                 Task::none()
             }
+            (Request::GetMessage { msg_id }, Err(err)) => {
+                // Тело закрепа не пришло: честная sys-строка и пометка
+                // «не загрузилось» вместо вечного «загружается».
+                if let Some(cid) = state.store.fail_pin(msg_id) {
+                    state.store.push_sys(
+                        cid,
+                        now_ms(),
+                        format!("закреплённое сообщение не загрузилось: {}", err.user_text()),
+                    );
+                }
+                Task::none()
+            }
             (Request::PinMessage { cid, .. }, Ok(OkReply::Done))
             | (Request::UnpinMessage { cid, .. }, Ok(OkReply::Done)) => {
                 // Состав закрепов перечитываем: источник правды — ядро.
@@ -1213,6 +1241,8 @@ fn on_link<L: CoreLink>(state: &mut State<L>, link: LinkIn) -> Task<Message> {
 fn on_chat<L: CoreLink>(state: &mut State<L>, chat: ChatIn) -> Task<Message> {
     match chat {
         ChatIn::Select(cid) => {
+            // Подсветка цели перехода не переживает смену чата.
+            state.highlight = None;
             let task = select_chat(state, cid);
             // На ядре 2.2+ читаем закрепы чата один раз за сессию.
             if state.kernel_v22() && !state.store.pins_requested(cid) {
@@ -1249,6 +1279,7 @@ fn on_chat<L: CoreLink>(state: &mut State<L>, chat: ChatIn) -> Task<Message> {
                     total: 0,
                     answered: None,
                     error: None,
+                    note: None,
                 });
                 return operation::focus::<Message>(input_id);
             }
@@ -1258,6 +1289,7 @@ fn on_chat<L: CoreLink>(state: &mut State<L>, chat: ChatIn) -> Task<Message> {
             if let Overlay::Search(view) = &mut state.overlay {
                 view.query = text;
                 view.error = None;
+                view.note = None;
             }
             search_restart(state)
         }
@@ -1265,6 +1297,7 @@ fn on_chat<L: CoreLink>(state: &mut State<L>, chat: ChatIn) -> Task<Message> {
             if let Overlay::Search(view) = &mut state.overlay {
                 view.global = global;
                 view.error = None;
+                view.note = None;
             }
             search_restart(state)
         }
@@ -1299,6 +1332,47 @@ fn on_chat<L: CoreLink>(state: &mut State<L>, chat: ChatIn) -> Task<Message> {
                 Task::none()
             }
         }
+        ChatIn::JumpTo { cid, key } => {
+            // Ядро курсоров «вокруг сообщения» не даёт (LOCAL_PLANS.md):
+            // честно переходим только к уже загруженному сообщению.
+            let local = match key {
+                widgets::JumpKey::Local(id) => Some(id),
+                widgets::JumpKey::Core(core) => state.store.local_id_of_core(cid, core),
+            };
+            let Some(local) = local else {
+                // Панель остаётся, список не прячем: пояснение — заметкой.
+                if let Overlay::Search(view) = &mut state.overlay {
+                    view.note = Some(
+                        "Сообщение ещё не загружено — поднимите ленту выше и попробуйте снова."
+                            .to_owned(),
+                    );
+                }
+                return Task::none();
+            };
+            state.overlay = Overlay::None;
+            let select = if state.store.selected() != Some(cid) {
+                select_chat(state, cid)
+            } else {
+                Task::none()
+            };
+            state.highlight = Some(local);
+            // Позиция строки известна только после раскладки: операция
+            // измеряет её на новом кадре и отвечает JumpMeasured.
+            let measure = iced::advanced::widget::operate(widgets::MeasureJump::new(
+                state.feed_id.clone(),
+                widgets::msg_target_id(local),
+            ))
+            .map(|y| Message::Chat(ChatIn::JumpMeasured(y)));
+            Task::batch([select, measure])
+        }
+        ChatIn::JumpMeasured(Some(y)) => operation::scroll_to(
+            state.feed_id.clone(),
+            operation::AbsoluteOffset {
+                x: None,
+                y: Some(y),
+            },
+        ),
+        ChatIn::JumpMeasured(None) => Task::none(),
         ChatIn::PickFile => {
             // Оверлей модален: выбор файла поверх диалога не открываем.
             if !matches!(state.overlay, Overlay::None) || state.store.selected().is_none() {
@@ -1944,15 +2018,24 @@ fn overlay_layer<'a, L: CoreLink>(
         ]
         .into(),
         Overlay::Pins => {
-            let entries = state
-                .store
-                .selected()
-                .map(|cid| state.store.pins(cid))
-                .unwrap_or(&[]);
+            let cid = state.store.selected();
+            let entries = cid.map(|cid| state.store.pins(cid)).unwrap_or(&[]);
+            // Какие закрепы уже в загруженной ленте — по ним можно
+            // перейти; остальные строки — без действия.
+            let loaded: std::collections::HashSet<CoreMsgId> = entries
+                .iter()
+                .filter(|p| {
+                    cid.and_then(|cid| state.store.local_id_of_core(cid, p.msg_id))
+                        .is_some()
+                })
+                .map(|p| p.msg_id)
+                .collect();
             stack![
                 widgets::backdrop(close()),
                 centered(widgets::pins_panel(
                     entries,
+                    &loaded,
+                    cid.unwrap_or(Cid(0)),
                     state.store.settings.font_scale
                 ))
             ]
@@ -2077,6 +2160,7 @@ fn overlay_layer<'a, L: CoreLink>(
                         } else {
                             None
                         },
+                        jump: (hit.cid, widgets::JumpKey::Core(hit.msg_id)),
                     })
                     .collect()
             } else {
@@ -2090,6 +2174,7 @@ fn overlay_layer<'a, L: CoreLink>(
                             mine: hit.mine,
                             body: hit.body,
                             chat: None,
+                            jump: (cid, widgets::JumpKey::Local(hit.id)),
                         })
                         .collect()
                 })
@@ -2455,9 +2540,9 @@ fn feed_view<L: CoreLink>(state: &State<L>, cid: Cid) -> Element<'_, Message> {
             FeedItem::Card { name, .. } => list = list.push(widgets::card_bubble(name, scale)),
             group @ FeedItem::Group { .. } => {
                 let rows = if compact {
-                    widgets::compact_group(&group, scale, &state.revealed_spoilers)
+                    widgets::compact_group(&group, scale, &state.revealed_spoilers, state.highlight)
                 } else {
-                    widgets::message_group(&group, scale, &state.revealed_spoilers)
+                    widgets::message_group(&group, scale, &state.revealed_spoilers, state.highlight)
                 };
                 for element in rows {
                     list = list.push(element);
@@ -2843,6 +2928,96 @@ mod tests {
             panic!("панель ещё открыта")
         };
         assert_eq!(view.query, "привет");
+    }
+
+    /// S16: клик по совпадению ведёт к загруженному сообщению — панель
+    /// закрывается, цель подсвечивается; смена чата подсветку снимает.
+    #[test]
+    fn jump_to_loaded_message_closes_panel_and_highlights() {
+        let mut state = state();
+        state.store.replace_contacts(vec![contact(1, "Аня")]);
+        let _ = update(&mut state, Message::Chat(ChatIn::Select(Cid(1))));
+        let _ = update(
+            &mut state,
+            Message::Link(LinkIn::Replied {
+                request: Request::History {
+                    cid: Cid(1),
+                    limit: 100,
+                },
+                reply: Ok(OkReply::History {
+                    total: 1,
+                    records: vec![crate::core_link::HistoryMsg {
+                        mine: false,
+                        delivered: false,
+                        msg_id: crate::model::msg::CoreMsgId([7; 16]),
+                        ts_ms: 1000,
+                        text: "раз".to_owned(),
+                        entities: Vec::new(),
+                    }],
+                }),
+                tag: None,
+            }),
+        );
+        let local = state.store.thread(Cid(1)).unwrap().msgs[0].id;
+
+        let _ = update(&mut state, Message::Chat(ChatIn::SearchOpen));
+        let _ = update(
+            &mut state,
+            Message::Chat(ChatIn::JumpTo {
+                cid: Cid(1),
+                key: widgets::JumpKey::Local(local),
+            }),
+        );
+        assert!(state.overlay_closed(), "панель закрылась");
+        assert_eq!(state.highlight, Some(local), "цель подсвечена");
+
+        // Переход по ядерному id тоже находит ту же строку.
+        let _ = update(&mut state, Message::Chat(ChatIn::SearchOpen));
+        let _ = update(
+            &mut state,
+            Message::Chat(ChatIn::JumpTo {
+                cid: Cid(1),
+                key: widgets::JumpKey::Core(crate::model::msg::CoreMsgId([7; 16])),
+            }),
+        );
+        assert_eq!(state.highlight, Some(local));
+
+        // Другой чат — подсветка не переживает переключение.
+        let _ = update(&mut state, Message::Chat(ChatIn::Select(Cid(2))));
+        assert_eq!(state.highlight, None);
+    }
+
+    /// S16: совпадение ядра, которого нет в загруженной ленте, — панель
+    /// остаётся с честным пояснением, список совпадений не скрыт.
+    #[test]
+    fn jump_to_unloaded_message_keeps_panel_with_note() {
+        let mut state = state();
+        state.store.replace_contacts(vec![contact(1, "Аня")]);
+        let _ = update(&mut state, Message::Chat(ChatIn::Select(Cid(1))));
+        let _ = update(&mut state, Message::Chat(ChatIn::SearchOpen));
+
+        let _ = update(
+            &mut state,
+            Message::Chat(ChatIn::JumpTo {
+                cid: Cid(1),
+                key: widgets::JumpKey::Core(crate::model::msg::CoreMsgId([9; 16])),
+            }),
+        );
+        let Overlay::Search(view) = &state.overlay else {
+            panic!("панель осталась открытой")
+        };
+        assert_eq!(
+            view.note.as_deref(),
+            Some("Сообщение ещё не загружено — поднимите ленту выше и попробуйте снова.")
+        );
+        assert_eq!(state.highlight, None);
+
+        // Новый ввод заметку снимает.
+        let _ = update(&mut state, Message::Chat(ChatIn::SearchInput("раз".into())));
+        let Overlay::Search(view) = &state.overlay else {
+            panic!("панель открыта")
+        };
+        assert_eq!(view.note, None);
     }
 
     #[test]

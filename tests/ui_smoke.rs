@@ -213,6 +213,10 @@ const SCENARIOS: &[(&str, fn())] = &[
         focus_follows_overlay_and_returns,
     ),
     (
+        "поиск: переход к совпадению",
+        search_result_jumps_to_message,
+    ),
+    (
         "настройки: галки и масштаб",
         settings_overlay_toggles_and_closes,
     ),
@@ -779,6 +783,79 @@ fn focus_follows_overlay_and_returns() {
         "черновик",
         "после закрытия инвайта ввод вернулся в композер"
     );
+}
+
+/// S16: клик по совпадению поиска закрывает панель и подсвечивает цель
+/// в ленте. Сообщение отправлено в этом же сценарии, поэтому оно точно
+/// загружено — переход обязан сработать.
+fn search_result_jumps_to_message() {
+    // Цель перехода — сообщение в истории чата: оно и в загруженной
+    // ленте, и в ядерном поиске (мок ищет по истории сцены).
+    let mut scene = Scene::smoke();
+    scene.history.insert(
+        1,
+        vec![shopot_gui::core_link::HistoryMsg {
+            mine: false,
+            delivered: false,
+            msg_id: shopot_gui::model::msg::CoreMsgId([42; 16]),
+            ts_ms: shopot_gui::core_link::now_ms(),
+            text: "крайне редкая фраза".into(),
+            entities: Vec::new(),
+        }],
+    );
+    let program = app::program(Link::new(scene));
+    let (sender, mut receiver) = mpsc::channel(512);
+    let mut emu = Emulator::new(
+        sender,
+        &program,
+        Mode::Immediate,
+        iced::Size::new(1000.0, 700.0),
+    );
+    run_instruction(
+        &mut emu,
+        &program,
+        &mut receiver,
+        Instruction::Expect(Expectation::Text("Аня".into())),
+    );
+    let [press, release] = click("Аня");
+    run_instruction(&mut emu, &program, &mut receiver, press);
+    run_instruction(&mut emu, &program, &mut receiver, release);
+    // Открытие чата подтянуло историю: цель уже в ленте.
+    run_instruction(
+        &mut emu,
+        &program,
+        &mut receiver,
+        Instruction::Expect(Expectation::Text("крайне редкая фраза".into())),
+    );
+
+    // Панель поиска, запрос, дожидаемся ответа ядра (mock 2.2).
+    emu.update(
+        &program,
+        shopot_gui::ui::Message::Chat(shopot_gui::ui::ChatIn::SearchOpen),
+    );
+    run_instruction(
+        &mut emu,
+        &program,
+        &mut receiver,
+        Instruction::Interact(Interaction::Keyboard(Keyboard::Typewrite("редкая".into()))),
+    );
+    pump(&mut emu, &program, &mut receiver, 1200);
+
+    // Строка совпадения: метка автора «не я» уникальна в дереве (тело
+    // совпадения повторяет текст пузыря за панелью — по нему не кликнуть).
+    let [press, release] = click("не я");
+    run_instruction(&mut emu, &program, &mut receiver, press);
+    run_instruction(&mut emu, &program, &mut receiver, release);
+    pump(&mut emu, &program, &mut receiver, 600);
+
+    let state = finish(emu, &program, "search_result_jumps_to_message");
+    assert!(state.overlay_closed(), "панель закрылась после перехода");
+    let highlighted = state.highlight.expect("цель перехода подсвечена");
+    let msg = state
+        .store
+        .msg(Cid(1), highlighted)
+        .expect("подсвеченное сообщение в ленте");
+    assert_eq!(msg.body, "крайне редкая фраза");
 }
 
 /// Настройки (S3): галки приватности и компакта, кнопки масштаба,
