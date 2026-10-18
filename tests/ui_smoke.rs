@@ -215,6 +215,7 @@ const SCENARIOS: &[(&str, fn())] = &[
     ("звонок: оверлей и mute", call_overlay_and_mute),
     ("разметка в ленте", formatted_message_renders),
     ("нейтральные подписи: resize и 120%", neutral_text_matrix),
+    ("длинные имена: resize и 120%", long_names_layout_matrix),
 ];
 
 #[test]
@@ -927,6 +928,76 @@ fn formatted_message_renders() {
 
 /// Только синтетический State: один и тот же текст на разных фонах,
 /// без фоновых событий, сети и изменения пользовательских данных.
+fn long_names_layout_matrix() {
+    use shopot_gui::model::store::Contact;
+    use shopot_gui::ui::{self, Message, SettingsIn};
+    use std::sync::Arc;
+
+    let boot = || {
+        let mut state = ui::State::new(Arc::new(Link::new(Scene::smoke())));
+        state.link_up = true;
+        state.store.replace_contacts(vec![
+            Contact {
+                cid: Cid(1),
+                name: "Александра / Alexandra — длинное имя без конца".into(),
+                online: true,
+                blocked: false,
+                avatar_id: None,
+            },
+            Contact {
+                cid: Cid(2),
+                name: "William van der Longlastname Without Spaces".into(),
+                online: false,
+                blocked: false,
+                avatar_id: None,
+            },
+        ]);
+        state.store.select(Some(Cid(1)));
+        (state, iced::Task::none())
+    };
+    let program =
+        iced::application(boot, ui::update::<Link>, ui::view::<Link>).theme(iced::Theme::Dark);
+
+    for (width, height) in [(1000, 700), (800, 560)] {
+        for percent in [100, 120] {
+            let suffix = format!("{width}x{height}_{percent}");
+            let (sender, mut receiver) = mpsc::channel(512);
+            let mut emu = Emulator::new(
+                sender,
+                &program,
+                Mode::Immediate,
+                iced::Size::new(width as f32, height as f32),
+            );
+            if percent == 120 {
+                emu.update(
+                    &program,
+                    Message::Settings(SettingsIn::ChangeFontScale(0.2)),
+                );
+            }
+            let expected = if percent == 100 {
+                "Александра / Alexandra — дл…"
+            } else {
+                "Александра / Alexandra…"
+            };
+            run_instruction(
+                &mut emu,
+                &program,
+                &mut receiver,
+                Instruction::Expect(Expectation::Text(expected.into())),
+            );
+            let state = finish(emu, &program, &format!("long_names_{suffix}"));
+            assert_eq!(
+                state
+                    .store
+                    .contact(Cid(1))
+                    .map(|contact| contact.name.as_str()),
+                Some("Александра / Alexandra — длинное имя без конца"),
+                "сокращается только отображение"
+            );
+        }
+    }
+}
+
 fn neutral_text_matrix() {
     use shopot_gui::model::msg::{FileRef, MsgId};
     use shopot_gui::model::store::Contact;

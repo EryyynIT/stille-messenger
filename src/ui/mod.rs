@@ -2331,10 +2331,14 @@ fn main_pane<L: CoreLink>(state: &State<L>) -> Element<'_, Message> {
                 }
                 title.push(
                     column![
-                        text(name.clone())
-                            .size(14.0 * scale)
-                            .font(palette::bold())
-                            .color(palette::TEXT),
+                        text(widgets::display_name(
+                            &name,
+                            (28.0 / scale).round().clamp(14.0, 28.0) as usize,
+                        ))
+                        .size(14.0 * scale)
+                        .wrapping(iced::widget::text::Wrapping::None)
+                        .font(palette::bold())
+                        .color(palette::TEXT),
                         {
                             // Presence и сессия здесь одно и то же: ядро не
                             // шлёт сессию отдельно, она выводится из PRESENCE
@@ -2847,6 +2851,26 @@ mod tests {
             text: text.to_owned(),
             entities: Vec::new(),
         }
+    }
+
+    #[test]
+    fn long_contact_name_is_shortened_without_losing_header_actions() {
+        let mut state = state();
+        let long_name = "Александра / Alexandra — длинное имя без конца";
+        state.store.replace_contacts(vec![contact(1, long_name)]);
+        state.store.select(Some(Cid(1)));
+
+        let mut ui = render(&state);
+        assert!(ui.find("Александра / Alexandra — дл…").is_ok());
+        assert!(
+            ui.find(long_name).is_err(),
+            "полное имя не должно вытеснять действия"
+        );
+        assert!(ui.find("в сети").is_ok(), "presence остаётся видимым");
+        assert!(
+            ui.find("Позвонить").is_ok(),
+            "кнопка звонка остаётся видимой"
+        );
     }
 
     /// Панель Ctrl+F: заголовок и подсказка на пустом запросе, честный

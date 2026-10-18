@@ -44,6 +44,20 @@ pub fn avatar_thumb(bytes: Option<&[u8]>, size: f32) -> Option<Element<'static, 
     )
 }
 
+/// Сокращает только экранное представление имени. Полное имя остаётся в Store
+/// и доступно карточке контакта.
+pub fn display_name(name: &str, max_chars: usize) -> String {
+    let mut chars = name.chars();
+    let visible: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        let keep = max_chars.saturating_sub(1);
+        let prefix: String = name.chars().take(keep).collect();
+        format!("{prefix}…")
+    } else {
+        visible
+    }
+}
+
 pub fn contact_row(
     cid: Cid,
     name: &str,
@@ -65,8 +79,10 @@ pub fn contact_row(
     // to_owned: фрагмент текста должен владеть строкой (Element 'static
     // для lazy), &str протянул бы заимствование из Store. База 16 —
     // прежний дефолт iced, принятый в S1 вид строки не меняем.
-    let name = text(name.to_owned())
+    let name_limit = (20.0 / scale).round().clamp(12.0, 20.0) as usize;
+    let name = text(display_name(name, name_limit))
         .size(16.0 * scale)
+        .wrapping(iced::widget::text::Wrapping::None)
         .font(if has_unread || selected {
             palette::bold()
         } else {
@@ -77,7 +93,8 @@ pub fn contact_row(
         } else {
             palette::MUTED
         })
-        .width(Length::Fill);
+        .width(Length::Fill)
+        .height(Length::Fixed(24.0 * scale));
 
     let mut cells = row![icon, name]
         .spacing(8)
@@ -1574,8 +1591,16 @@ fn file_metadata_color(mine: bool, compact: bool, body_len: usize) -> iced::Colo
 
 #[cfg(test)]
 mod tests {
-    use super::file_metadata_color;
+    use super::{display_name, file_metadata_color};
     use crate::ui::palette;
+
+    #[test]
+    fn display_name_shortens_at_char_boundaries() {
+        assert_eq!(display_name("short", 8), "short");
+        assert_eq!(display_name("Длинное имя", 7), "Длинно…");
+        assert_eq!(display_name("Жё/Шё", 4), "Жё/…");
+        assert_eq!(display_name("имя", 0), "…");
+    }
 
     #[test]
     fn file_metadata_color_follows_rendered_surface() {
