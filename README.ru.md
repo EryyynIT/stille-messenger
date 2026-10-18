@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml/badge.svg)](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml)
 
-Десктоп-клиент Stille Messenger для [stille-messenger-core](https://github.com/Puxxalwl/shopot-core/) —
+Десктоп-клиент Stille Messenger для [stille-messenger-core](https://github.com/Puxxalwl/stille-messenger-core/) —
 серверлесс P2P-движок обмена сообщениями со сквозным шифрованием и forward secrecy.
 
 Собран на [iced](https://github.com/iced-rs/iced) с программным рендером
@@ -101,9 +101,9 @@ flatpak-builder --user --install build-flatpak \
 
 ```sh
 # движок: собрать, создать личность, запустить демона
-cd core/zig && zig build -Doptimize=ReleaseSafe && cd ../..
-./core/zig/zig-out/bin/stille-messenger-core init
-./core/zig/zig-out/bin/stille-messenger-core serve
+cd core/core && zig build -Doptimize=ReleaseSafe && cd ../..
+./core/core/zig-out/bin/stille-messenger-core init
+./core/core/zig-out/bin/stille-messenger-core serve
 
 # клиент, в другом терминале
 cargo run --release
@@ -135,10 +135,10 @@ cargo run --release
 ## Ядро
 
 Stille — это клиент; движок — шифрованный P2P-транспорт, сессии,
-хранилище — в [stille-messenger-core](https://github.com/Puxxalwl/shopot-core)
+хранилище — в [stille-messenger-core](https://github.com/Puxxalwl/stille-messenger-core)
 от [puxxalwl](https://github.com/puxxalwl). Зафиксированный контракт API —
 подмодуль `core` (спецификация бинарного протокола:
-`core/zig/docs/CORE-API.md`).
+`core/core/docs/CORE-API.md`).
 
 ## Лицензия
 

@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml/badge.svg)](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml)
 
-Stille Messenger desktop GUI client for [stille-messenger-core](https://github.com/Puxxalwl/shopot-core/) —
+Stille Messenger desktop GUI client for [stille-messenger-core](https://github.com/Puxxalwl/stille-messenger-core/) —
 a serverless P2P messaging engine with end-to-end encryption and forward secrecy.
 
 Built with [iced](https://github.com/iced-rs/iced) on the tiny-skia software
@@ -103,9 +103,9 @@ the daemon.
 
 ```sh
 # the engine: build once, init your identity, run the daemon
-cd core/zig && zig build -Doptimize=ReleaseSafe && cd ../..
-./core/zig/zig-out/bin/stille-messenger-core init
-./core/zig/zig-out/bin/stille-messenger-core serve
+cd core/core && zig build -Doptimize=ReleaseSafe && cd ../..
+./core/core/zig-out/bin/stille-messenger-core init
+./core/core/zig-out/bin/stille-messenger-core serve
 
 # the client, in another terminal
 cargo run --release
@@ -138,10 +138,10 @@ the reliable one.
 ## The core
 
 Stille itself is the client; the engine — encrypted P2P transport, sessions,
-storage — lives in [stille-messenger-core](https://github.com/Puxxalwl/shopot-core) by
+storage — lives in [stille-messenger-core](https://github.com/Puxxalwl/stille-messenger-core) by
 [puxxalwl](https://github.com/puxxalwl). The pinned API contract is vendored
 as the `core` git submodule (binary protocol spec:
-`core/zig/docs/CORE-API.md`).
+`core/core/docs/CORE-API.md`).
 
 ## License
 
