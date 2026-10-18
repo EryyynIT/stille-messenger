@@ -16,6 +16,11 @@ pub const RAISE: Color = Color::from_rgb8(0x23, 0x23, 0x29);
 pub const SHEET: Color = Color::from_rgb8(0x1C, 0x1C, 0x21);
 /// Приглушённая линия: редко, где заливки не хватает.
 pub const LINE: Color = Color::from_rgb8(0x2C, 0x2C, 0x33);
+/// Нейтральная заливка нажатого состояния (iced 0.14 не даёт кнопкам
+/// focus-статуса; pressed — честный видимый отклик).
+pub const PRESS: Color = Color::from_rgb8(0x36, 0x36, 0x3F);
+/// Акцент в нажатом состоянии — тот же синий, чуть темнее.
+pub const ACCENT_DOWN: Color = Color::from_rgb8(0x08, 0x6C, 0xD4);
 /// Основной текст.
 pub const TEXT: Color = Color::from_rgb8(0xF2, 0xF2, 0xF7);
 /// Второстепенный текст и плейсхолдеры на тёмных поверхностях (WCAG AA).
@@ -127,10 +132,10 @@ pub fn text_colored(color: Color) -> impl Fn(&Theme) -> text::Style {
 pub fn chat_row(selected: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, status| {
         let hovered = matches!(status, button::Status::Hovered);
-        let background = if selected || hovered {
-            Some(Background::Color(RAISE))
-        } else {
-            None
+        let background = match status {
+            button::Status::Pressed => Some(Background::Color(LINE)),
+            _ if selected || hovered => Some(Background::Color(RAISE)),
+            _ => None,
         };
         button::Style {
             background,
@@ -172,6 +177,7 @@ pub fn editor(_: &Theme, status: text_editor::Status) -> text_editor::Style {
 pub fn button_accent(_: &Theme, status: button::Status) -> button::Style {
     let (bg, fg) = match status {
         button::Status::Disabled => (RAISE, MUTED),
+        button::Status::Pressed => (ACCENT_DOWN, Color::WHITE),
         _ => (ACCENT, Color::WHITE),
     };
     button::Style {
@@ -187,9 +193,13 @@ pub fn button_accent(_: &Theme, status: button::Status) -> button::Style {
 
 /// Кнопка второстепенного действия: серая капсула без рамки.
 pub fn button_dim(_: &Theme, status: button::Status) -> button::Style {
-    let hovered = matches!(status, button::Status::Hovered);
+    let bg = match status {
+        button::Status::Pressed => PRESS,
+        button::Status::Hovered => LINE,
+        _ => RAISE,
+    };
     button::Style {
-        background: Some(Background::Color(if hovered { LINE } else { RAISE })),
+        background: Some(Background::Color(bg)),
         text_color: TEXT,
         border: Border {
             radius: Radius::from(18.0),
@@ -201,9 +211,13 @@ pub fn button_dim(_: &Theme, status: button::Status) -> button::Style {
 
 /// Прозрачная кнопка (имя контакта в шапке чата): ховер — поднятие.
 pub fn button_plain(_: &Theme, status: button::Status) -> button::Style {
-    let hovered = matches!(status, button::Status::Hovered);
+    let background = match status {
+        button::Status::Pressed => Some(Background::Color(PRESS)),
+        button::Status::Hovered => Some(Background::Color(RAISE)),
+        _ => None,
+    };
     button::Style {
-        background: hovered.then_some(Background::Color(RAISE)),
+        background,
         text_color: TEXT,
         border: Border {
             radius: Radius::from(10.0),
@@ -215,9 +229,13 @@ pub fn button_plain(_: &Theme, status: button::Status) -> button::Style {
 
 /// Строка меню по правой кнопке: прозрачная, ховер — поднятие.
 pub fn button_menu(_: &Theme, status: button::Status) -> button::Style {
-    let hovered = matches!(status, button::Status::Hovered);
+    let background = match status {
+        button::Status::Pressed => Some(Background::Color(PRESS)),
+        button::Status::Hovered => Some(Background::Color(RAISE)),
+        _ => None,
+    };
     button::Style {
-        background: hovered.then_some(Background::Color(RAISE)),
+        background,
         text_color: TEXT,
         border: Border {
             radius: Radius::from(10.0),
@@ -335,6 +353,32 @@ mod tests {
         for surface in [BG, PANEL, RAISE, SHEET, LINE, theirs] {
             assert_aa(MUTED, surface);
         }
+    }
+
+    #[test]
+    fn pressed_state_differs_from_active_and_hovered() {
+        use iced::widget::button::Status;
+        for style in [
+            button_dim as fn(&Theme, Status) -> button::Style,
+            button_plain,
+            button_menu,
+        ] {
+            let active = style(&Theme::Dark, Status::Active).background;
+            let hovered = style(&Theme::Dark, Status::Hovered).background;
+            let pressed = style(&Theme::Dark, Status::Pressed).background;
+            assert_ne!(active, pressed, "нажатие должно быть видимым");
+            assert_ne!(hovered, pressed, "нажатие не совпадает с ховером");
+        }
+        assert_ne!(
+            button_accent(&Theme::Dark, Status::Active).background,
+            button_accent(&Theme::Dark, Status::Pressed).background,
+            "акцентная кнопка тоже меняется при нажатии"
+        );
+        assert_ne!(
+            chat_row(false)(&Theme::Dark, Status::Active).background,
+            chat_row(false)(&Theme::Dark, Status::Pressed).background,
+            "строка чата меняется при нажатии"
+        );
     }
 
     #[test]
