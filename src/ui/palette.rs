@@ -157,6 +157,20 @@ pub fn no_bubble(_: &Theme) -> container::Style {
     }
 }
 
+/// Подсветка сообщения после перехода из поиска/закрепов (S16):
+/// прозрачный акцент поверх любой заливки — виден и в пузыре, и в
+/// длинном блоке, и в компактной ленте.
+pub fn jump_highlight(_: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(Color { a: 0.18, ..ACCENT })),
+        border: Border {
+            radius: Radius::from(6.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
 /// Поле композера: капсула, фокус — тонкая акцентная обводка.
 pub fn editor(_: &Theme, status: text_editor::Status) -> text_editor::Style {
     let focused = matches!(status, text_editor::Status::Focused { .. });
