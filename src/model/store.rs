@@ -38,6 +38,9 @@ pub struct PinEntry {
     pub ts_ms: i64,
     pub mine: bool,
     pub body: Option<String>,
+    /// GET_MESSAGE по этому закрепу завершился ошибкой: панель говорит
+    /// «не загрузилось», а не висит в вечном «загружается».
+    pub failed: bool,
 }
 
 /// Состояние защищённой сессии с контактом. Ядро отдельного события сессии
@@ -654,12 +657,14 @@ impl Store {
                         ts_ms,
                         mine,
                         body: Some(body),
+                        failed: false,
                     },
                     None => PinEntry {
                         msg_id: *id,
                         ts_ms: 0,
                         mine: false,
                         body: None,
+                        failed: false,
                     },
                 }
             })
@@ -677,8 +682,32 @@ impl Store {
                 ts_ms,
                 mine,
                 body: Some(body),
+                failed: false,
             };
         }
+    }
+
+    /// GET_MESSAGE по закрепу упал: запись помечается, панель перестаёт
+    /// показывать «загружается». Возвращает чат-владельца закрепа.
+    pub fn fail_pin(&mut self, msg_id: CoreMsgId) -> Option<Cid> {
+        for (cid, thread) in &mut self.threads {
+            if let Some(entry) = thread.pins.iter_mut().find(|p| p.msg_id == msg_id) {
+                entry.failed = true;
+                return Some(*cid);
+            }
+        }
+        None
+    }
+
+    /// Обратный поиск: msg_id ядра → локальный id в загруженной ленте
+    /// (переход из поиска/закрепов к сообщению, S16).
+    pub fn local_id_of_core(&self, cid: Cid, core_id: CoreMsgId) -> Option<MsgId> {
+        self.threads
+            .get(&cid)?
+            .msgs
+            .iter()
+            .find(|m| m.core_id == Some(core_id))
+            .map(|m| m.id)
     }
 
     /// Закрепы чата для UI (порядок закрепления).
@@ -959,6 +988,41 @@ mod tests {
         assert_eq!(msgs[0].send, SendState::Sent, "статус не перезаписан");
         assert_eq!(store.thread(Cid(1)).unwrap().history_loaded, 0);
         assert_eq!(store.history_loaded(Cid(1)), 0);
+    }
+
+    /// S16: msg_id ядра → локальный id загруженного сообщения (переход
+    /// из поиска/закрепов). Незагруженное сообщение — None.
+    #[test]
+    fn core_id_maps_back_to_loaded_message() {
+        let mut store = Store::new();
+        store.replace_contacts(vec![contact(1, "Аня", true)]);
+        store.load_history(Cid(1), 2, &[history(7, false, false, 1000, "раз")]);
+
+        let local = store.thread(Cid(1)).unwrap().msgs[0].id;
+        assert_eq!(
+            store.local_id_of_core(Cid(1), CoreMsgId([7; 16])),
+            Some(local)
+        );
+        assert_eq!(store.local_id_of_core(Cid(1), CoreMsgId([9; 16])), None);
+        assert_eq!(store.local_id_of_core(Cid(2), CoreMsgId([7; 16])), None);
+    }
+
+    /// S16: ошибка GET_MESSAGE помечает закреп — панель перестаёт
+    /// висеть в «загружается»; чужой msg_id молча игнорируется.
+    #[test]
+    fn failed_pin_is_marked_and_owned() {
+        let mut store = Store::new();
+        store.replace_contacts(vec![contact(1, "Аня", true)]);
+        store.set_pin_ids(Cid(1), &[CoreMsgId([3; 16])]);
+
+        assert_eq!(store.fail_pin(CoreMsgId([3; 16])), Some(Cid(1)));
+        assert!(store.pins(Cid(1))[0].failed);
+        assert_eq!(store.fail_pin(CoreMsgId([9; 16])), None);
+
+        // Удачный GET_MESSAGE снимает пометку.
+        store.fill_pin(Cid(1), CoreMsgId([3; 16]), 1000, false, "тело".into());
+        assert!(!store.pins(Cid(1))[0].failed);
+        assert_eq!(store.pins(Cid(1))[0].body.as_deref(), Some("тело"));
     }
 
     /// Потолок окна ядра: loaded == 200 при большем total — догрузки нет.
