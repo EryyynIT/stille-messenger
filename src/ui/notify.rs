@@ -33,7 +33,7 @@ pub fn os_notify(title: String, body: String) -> Task<Message> {
     Task::perform(
         async move {
             let _ = tokio::process::Command::new("notify-send")
-                .arg("--app-name=shopot")
+                .arg("--app-name=stille-messenger")
                 .arg("--expire-time=5000")
                 .arg(title)
                 .arg(body)

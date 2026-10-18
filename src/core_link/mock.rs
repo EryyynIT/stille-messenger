@@ -498,7 +498,11 @@ impl MockLink {
                 } else {
                     addr
                 };
-                let head = if relay { "shopot1r." } else { "shopot1." };
+                let head = if relay {
+                    "stille://i/r/"
+                } else {
+                    "stille://i/"
+                };
                 Ok(OkReply::Code(format!("{head}{code}@{host}")))
             }
             // Семантика ядра (§4.4): 1..=16000 Б, id — content
@@ -587,7 +591,10 @@ impl MockLink {
                 Ok(OkReply::Done)
             }
             Request::Add { code } => {
-                if !code.starts_with("shopot1.") && !code.starts_with("shopot://i/") {
+                if !code.starts_with("stille://i/")
+                    && !code.starts_with("shopot1.")
+                    && !code.starts_with("shopot://i/")
+                {
                     return Err(LinkError::Kernel(Status::BadInviteCode));
                 }
                 let (cid, guest_name) = {
@@ -1076,7 +1083,7 @@ mod tests {
 
         let reply = link
             .execute(Request::Add {
-                code: "shopot1.abc@1.2.3.4".into(),
+                code: "stille://i/abc@1.2.3.4".into(),
             })
             .await;
         let Ok(OkReply::Added { cid }) = reply else {
@@ -1124,7 +1131,7 @@ mod tests {
         let Ok(OkReply::Code(code)) = reply else {
             panic!()
         };
-        assert!(code.starts_with("shopot1."));
+        assert!(code.starts_with("stille://i/"));
         assert!(code.ends_with("@192.168.1.5"));
     }
 

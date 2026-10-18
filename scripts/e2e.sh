@@ -21,7 +21,10 @@ ZIG_BIN="$(find_zig)"
 
 run_against() {
     local root="$1"
-    local bin="$root/zig/zig-out/bin/shopot-zig"
+    local bin="$root/zig/zig-out/bin/stille-messenger-core"
+    if [ ! -x "$bin" ] && [ -x "$root/zig/zig-out/bin/shopot-zig" ]; then
+        bin="$root/zig/zig-out/bin/shopot-zig"
+    fi
     if [ ! -x "$bin" ]; then
         echo "== сборка ядра: $root"
         (cd "$root/zig" && "$ZIG_BIN" build -Doptimize=ReleaseFast)
@@ -30,7 +33,7 @@ run_against() {
     # Демоны тестов — отдельные процессы; под параллельной нагрузкой
     # сьюта таймауты знакомства флакили. Сериализуем: e2e и так медленный,
     # честный гейт важнее секунд.
-    SHOPOT_BIN="$bin" cargo test --test e2e_daemon -- --test-threads=1
+    STILLE_MESSENGER_BIN="$bin" cargo test --test e2e_daemon -- --test-threads=1
 }
 
 run_against core

@@ -1,0 +1,42 @@
+# Local Flatpak prototype: stille-messenger GUI + core from prebuilt binaries.
+# Build after cargo build --release and zig build -Doptimize=ReleaseSafe.
+#
+#   flatpak-builder --user --install build-flatpak packaging/flatpak/io.github.stille_messenger.yaml
+
+app-id: io.github.stille_messenger
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: stille-messenger
+
+finish-args:
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --socket=pulseaudio
+  - --talk-name=org.freedesktop.Notifications
+  - --persist=.stille-messenger
+  - --filesystem=~/.var/app/io.github.EryyynIT.shopot/.shopot:ro
+
+modules:
+  - name: stille-messenger
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 stille-messenger /app/bin/stille-messenger
+      - install -Dm755 stille-messenger-core /app/bin/stille-messenger-core
+      - install -Dm644 io.github.stille_messenger.desktop /app/share/applications/io.github.stille_messenger.desktop
+      - install -Dm644 io.github.stille_messenger.png /app/share/icons/hicolor/256x256/apps/io.github.stille_messenger.png
+      - install -Dm644 io.github.stille_messenger.metainfo.xml /app/share/metainfo/io.github.stille_messenger.metainfo.xml
+    sources:
+      - type: file
+        path: ../../target/release/stille-messenger
+      - type: file
+        path: ../../core/zig/zig-out/bin/stille-messenger-core
+      - type: file
+        path: io.github.stille_messenger.desktop
+      - type: file
+        path: ../../docs/icon.png
+        dest-filename: io.github.stille_messenger.png
+      - type: file
+        path: ../io.github.stille_messenger.metainfo.xml

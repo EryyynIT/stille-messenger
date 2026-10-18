@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Stille Messenger
+Comment=Quiet peer-to-peer messenger
+Exec=stille-messenger
+Icon=io.github.stille_messenger
+Categories=Network;InstantMessaging;
+Terminal=false

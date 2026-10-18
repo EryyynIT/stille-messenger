@@ -3539,22 +3539,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
-name = "shopot-gui"
-version = "0.1.1"
-dependencies = [
- "chrono",
- "cpal",
- "futures-core",
- "futures-util",
- "iced",
- "iced_test",
- "image",
- "png 0.17.16",
- "rfd",
- "tokio",
-]
-
-[[package]]
 name = "signal-hook-registry"
 version = "1.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3775,6 +3759,22 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "stille-messenger"
+version = "0.1.1"
+dependencies = [
+ "chrono",
+ "cpal",
+ "futures-core",
+ "futures-util",
+ "iced",
+ "iced_test",
+ "image",
+ "png 0.17.16",
+ "rfd",
+ "tokio",
+]
 
 [[package]]
 name = "strict-num"

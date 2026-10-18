@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Генератор иконки shopot: тёмный скруглённый квадрат, пузырь акцентом.
+"""Генератор иконки Stille: тёмный скруглённый квадрат, пузырь акцентом.
 
 Пишет assets/icon.rgba (сырой RGBA 256×256 для window::Icon) и
 docs/icon.png (для README). Только stdlib. Запуск: python3 tools/gen_icon.py

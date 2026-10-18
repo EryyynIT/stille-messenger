@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=shopot
-Comment=Serverless P2P messenger
-Exec=shopot-gui
-Icon=io.github.EryyynIT.shopot
-Categories=Network;InstantMessaging;
-Terminal=false

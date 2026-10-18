@@ -41,7 +41,7 @@ pub fn program<L: CoreLink>(
     impl iced::Program<State = App<L>, Message = Message, Theme = iced::Theme>,
 > {
     iced::application(Boot(Arc::new(link)), update, view)
-        .title("shopot")
+        .title("Stille Messenger")
         .theme(theme)
         .window(iced::window::Settings {
             size: iced::Size::new(1000.0, 700.0),
@@ -52,7 +52,7 @@ pub fn program<L: CoreLink>(
         .subscription(subscription)
 }
 
-/// Иконка окна из вшитого RGBA-ассета (генерируется tools/gen_icon.py).
+/// Иконка окна из вшитого RGBA-ассета Stille.
 fn window_icon() -> iced::window::Icon {
     // Распаковка не может упасть: ассет ровно 256×256×4 байта, что
     // проверено генератором и тестом длины файла.

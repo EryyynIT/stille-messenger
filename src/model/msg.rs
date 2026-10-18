@@ -47,7 +47,7 @@ pub enum Dir {
 }
 
 /// Файл-вложение (S10): имя/размер с провода, file_id = SHA-256[0..16],
-/// path — где лежит для открытия (входящий: ~/.shopot/files/<hex>;
+/// path — где лежит для открытия (входящий: ~/.stille-messenger/files/<hex>;
 /// свой: исходный путь). Статус передачи — поле send сообщения.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileRef {

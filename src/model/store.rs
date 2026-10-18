@@ -1316,7 +1316,7 @@ mod tests {
                 name: "смета.xlsx".into(),
                 size: 12_000,
                 file_id: [0xA9; 16],
-                path: Some("/home/u/.shopot/files/a9a9".into()),
+                path: Some("/home/u/.stille-messenger/files/a9a9".into()),
             },
         );
         assert_eq!(

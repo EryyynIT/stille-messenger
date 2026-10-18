@@ -1,5 +1,5 @@
-//! UDS-транспорт бинарного API: соединение с демоном `shopot serve`
-//! (`$HOME/.shopot/api.sock`), корреляция ответов по request_id, события
+//! UDS-транспорт бинарного API: соединение с демоном `stille-messenger-core serve`
+//! (`$HOME/.stille-messenger/api.sock`), корреляция ответов по request_id, события
 //! в поток, backoff-ресинк при обрыве. Здесь же раскладки payload методов
 //! и событий — структурный слой поверх кодека [`super::api`].
 //!
@@ -48,7 +48,7 @@ struct RawReply {
     payload: Vec<u8>,
 }
 
-/// Реальный канал с ядром: демон `shopot serve` обязан быть запущен
+/// Реальный канал с ядром: демон `stille-messenger-core serve` обязан быть запущен
 /// (при отсутствии GUI сам попытается его поднять — один раз).
 pub struct UdsLink {
     inner: Arc<Inner>,
@@ -58,7 +58,7 @@ struct Inner {
     path: PathBuf,
     /// База backoff; тесты ставят маленькую.
     backoff: Duration,
-    /// Пробовать спавнить `shopot serve`, если сокета нет.
+    /// Пробовать спавнить `stille-messenger-core serve`, если сокета нет.
     spawn_daemon: bool,
     /// Живое соединение: очередь кадров записи.
     conn: Mutex<Option<mpsc::Sender<Vec<u8>>>>,
@@ -75,10 +75,10 @@ struct Inner {
 }
 
 impl UdsLink {
-    /// Канал к демону текущего пользователя ($HOME/.shopot/api.sock).
+    /// Канал к демону текущего пользователя ($HOME/.stille-messenger/api.sock).
     pub fn new() -> Self {
         let home = std::env::var("HOME").unwrap_or_default();
-        let path = Path::new(&home).join(".shopot").join("api.sock");
+        let path = Path::new(&home).join(".stille-messenger").join("api.sock");
         Self::with_config(path, Duration::from_millis(500), true)
     }
 
@@ -160,19 +160,20 @@ impl Inner {
         }
     }
 
-    /// Спавн `shopot serve` из PATH; у свежего $HOME сперва `shopot init`
+    /// Запускает `stille-messenger-core serve` из PATH; для свежего $HOME сперва `stille-messenger-core init`
     /// (демон без сида сразу выходит). GUI не становится его сидом:
     /// процесс ждут в отдельной задаче только ради reap.
     async fn spawn_daemon() {
         let home = std::env::var("HOME").unwrap_or_default();
-        let seed = Path::new(&home).join(".shopot/zig-seed");
+        let seed = Path::new(&home).join(".stille-messenger/zig-seed");
+        let daemon = "stille-messenger-core";
         if !seed.exists() {
-            let _ = tokio::process::Command::new("shopot")
+            let _ = tokio::process::Command::new(daemon)
                 .arg("init")
                 .output()
                 .await;
         }
-        let Ok(mut child) = tokio::process::Command::new("shopot").arg("serve").spawn() else {
+        let Ok(mut child) = tokio::process::Command::new(daemon).arg("serve").spawn() else {
             return; // бинарника нет — статус «нет связи», не шумим
         };
         tokio::spawn(async move {
@@ -374,7 +375,7 @@ fn encode_request(request: &Request, api2: bool) -> (Method, Vec<u8>) {
             api::put::str16(&mut payload, "").expect("пустая строка");
             Method::AcceptInvite
         }
-        // name пустой — ядро подставит «shopot»; addr пустой — LAN-анонс;
+        // name пустой — ядро подставит «stille»; addr пустой — LAN-анонс;
         // relay=1 требует addr: соединение идёт через релей, peer IP не видит.
         Request::Invite { relay, addr } => {
             api::put::u8(&mut payload, u8::from(*relay));
@@ -923,7 +924,7 @@ fn decode_event(header: &Header, payload: &[u8]) -> Option<LinkEvent> {
             })
         }
         // FILE_RECEIVED (7, §4.5): [cid u32][file_id 16][size u32]
-        // [name str16]. Файл уже на диске ядра (~/.shopot/files/<hex>).
+        // [name str16]. Файл уже на диске ядра (~/.stille-messenger/files/<hex>).
         api::Event::FileReceived => {
             let cid = r.read_u32().ok()?;
             let mut file_id = [0u8; 16];
@@ -975,7 +976,10 @@ mod tests {
     /// Путь сокета в /tmp, уникальный для теста.
     fn temp_socket(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir();
-        dir.join(format!("shopot-gui-test-{tag}-{}.sock", std::process::id()))
+        dir.join(format!(
+            "stille-messenger-test-{tag}-{}.sock",
+            std::process::id()
+        ))
     }
 
     fn response_frame(id: u16, request_id: u32, status: Status, payload: &[u8]) -> Vec<u8> {
@@ -1382,7 +1386,7 @@ mod tests {
                 CoreLink::execute(
                     &*link,
                     Request::Add {
-                        code: "shopot://i/AbCdEf".into(),
+                        code: "stille://i/AbCdEf".into(),
                     },
                 )
                 .await
@@ -1394,7 +1398,7 @@ mod tests {
         let mut r = api::Reader::new(&payload);
         assert_eq!(
             r.read_str16().map(|b| std::str::from_utf8(b).unwrap()),
-            Ok("shopot://i/AbCdEf")
+            Ok("stille://i/AbCdEf")
         );
         assert_eq!(
             r.read_str16().map(|b| std::str::from_utf8(b).unwrap()),
@@ -1652,7 +1656,7 @@ mod tests {
         let (h2, _) = read_frame(&mut stream).await;
 
         let mut code = Vec::new();
-        api::put::str16(&mut code, "shopot1.def").expect("str16");
+        api::put::str16(&mut code, "stille://i/def").expect("str16");
         // Сначала ответ на ВТОРОЙ (h2), потом на ПЕРВЫЙ (h1).
         stream
             .write_all(&response_frame(h2.id, h2.request_id, Status::Ok, &code))
@@ -1667,7 +1671,7 @@ mod tests {
 
         assert_eq!(
             second.await.expect("задача не паникует"),
-            Ok(OkReply::Code("shopot1.def".into()))
+            Ok(OkReply::Code("stille://i/def".into()))
         );
         assert_eq!(
             first.await.expect("задача не паникует"),

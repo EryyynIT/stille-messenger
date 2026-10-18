@@ -10,9 +10,11 @@ use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
-use shopot_gui::core_link::api::Status;
-use shopot_gui::core_link::uds::UdsLink;
-use shopot_gui::core_link::{CallSignal, CoreLink, LinkError, LinkEvent, OkReply, Reply, Request};
+use stille_messenger::core_link::api::Status;
+use stille_messenger::core_link::uds::UdsLink;
+use stille_messenger::core_link::{
+    CallSignal, CoreLink, LinkError, LinkEvent, OkReply, Reply, Request,
+};
 
 struct Daemon(Child, PathBuf);
 
@@ -35,8 +37,11 @@ impl Drop for Proc {
 }
 
 fn spawn_daemon(tag: &str) -> Daemon {
-    let bin = std::env::var("SHOPOT_BIN").expect("SHOPOT_BIN задан (гейт теста)");
-    let home = std::env::temp_dir().join(format!("shopot-e2e-{tag}-{}", std::process::id()));
+    let bin = std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .expect("SHOPOT_BIN задан (гейт теста)");
+    let home =
+        std::env::temp_dir().join(format!("stille-messenger-e2e-{tag}-{}", std::process::id()));
     std::fs::create_dir_all(&home).expect("дом демона создан");
     // serve требует личность: у свежего $HOME сначала init.
     let init = Command::new(&bin)
@@ -60,7 +65,7 @@ fn spawn_daemon(tag: &str) -> Daemon {
 }
 
 async fn wait_socket(home: &std::path::Path) -> PathBuf {
-    let sock = home.join(".shopot/api.sock");
+    let sock = home.join(".stille-messenger/api.sock");
     let deadline = Instant::now() + Duration::from_secs(15);
     while Instant::now() < deadline {
         if sock.exists() {
@@ -110,7 +115,8 @@ async fn execute_retry(link: &UdsLink, request: Request) -> Reply {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn invite_message_delivery_two_daemons() {
-    let Ok(bin) = std::env::var("SHOPOT_BIN") else {
+    let Ok(bin) = std::env::var("STILLE_MESSENGER_BIN").or_else(|_| std::env::var("SHOPOT_BIN"))
+    else {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     };
@@ -168,7 +174,9 @@ async fn invite_message_delivery_two_daemons() {
         other => panic!("CREATE_INVITE не удался: {other:?}"),
     };
     assert!(
-        code.starts_with("shopot1.") || code.starts_with("shopot://i/"),
+        code.starts_with("stille://i/")
+            || code.starts_with("shopot1.")
+            || code.starts_with("shopot://i/"),
         "код: {code}"
     );
 
@@ -274,7 +282,8 @@ async fn invite_message_delivery_two_daemons() {
 /// разработчиков в разных городах с пробросом порта на роутере одного из них.
 #[tokio::test(flavor = "multi_thread")]
 async fn addr_invite_message_two_daemons() {
-    let Ok(bin) = std::env::var("SHOPOT_BIN") else {
+    let Ok(bin) = std::env::var("STILLE_MESSENGER_BIN").or_else(|_| std::env::var("SHOPOT_BIN"))
+    else {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     };
@@ -408,7 +417,8 @@ async fn addr_invite_message_two_daemons() {
 /// переписку из зашифрованного лога с теми же msg_id и флагами.
 #[tokio::test(flavor = "multi_thread")]
 async fn history_survives_daemon_restart() {
-    let Ok(bin) = std::env::var("SHOPOT_BIN") else {
+    let Ok(bin) = std::env::var("STILLE_MESSENGER_BIN").or_else(|_| std::env::var("SHOPOT_BIN"))
+    else {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     };
@@ -587,7 +597,8 @@ async fn history_survives_daemon_restart() {
 /// CORE_FEEDBACK.md §5 — закрыт). Входит в гейт scripts/e2e.sh.
 #[tokio::test(flavor = "multi_thread")]
 async fn relay_invite_message_two_daemons() {
-    let Ok(bin) = std::env::var("SHOPOT_BIN") else {
+    let Ok(bin) = std::env::var("STILLE_MESSENGER_BIN").or_else(|_| std::env::var("SHOPOT_BIN"))
+    else {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     };
@@ -709,7 +720,8 @@ async fn relay_invite_message_two_daemons() {
 /// пропускается по зонду GET_VERSION (обратная совместимость гейта).
 #[tokio::test(flavor = "multi_thread")]
 async fn search_finds_messages_two_daemons() {
-    let Ok(bin) = std::env::var("SHOPOT_BIN") else {
+    let Ok(bin) = std::env::var("STILLE_MESSENGER_BIN").or_else(|_| std::env::var("SHOPOT_BIN"))
+    else {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     };
@@ -903,7 +915,10 @@ async fn search_finds_messages_two_daemons() {
 /// и переживают рестарт демона (§4.8). Два демона, LAN-знакомство.
 #[tokio::test]
 async fn pins_survive_daemon_restart() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }
@@ -1013,7 +1028,9 @@ async fn pins_survive_daemon_restart() {
     drop(link_a);
     a.0.kill().expect("демон убит");
     let _ = a.0.wait();
-    let bin = std::env::var("SHOPOT_BIN").expect("SHOPOT_BIN задан");
+    let bin = std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .expect("SHOPOT_BIN задан");
     a.0 = Command::new(&bin)
         .arg("serve")
         .env("HOME", &a.1)
@@ -1067,7 +1084,10 @@ async fn pins_survive_daemon_restart() {
 /// воскресают после рестарта демона (§4.8). У B своя копия остаётся.
 #[tokio::test]
 async fn cards_and_chat_delete_two_daemons() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }
@@ -1210,7 +1230,7 @@ async fn cards_and_chat_delete_two_daemons() {
     let reply = CoreLink::execute(
         &*link_a,
         Request::SendContact {
-            to: shopot_gui::model::cid::Cid(99),
+            to: stille_messenger::model::cid::Cid(99),
             contact: None,
         },
     )
@@ -1281,7 +1301,9 @@ async fn cards_and_chat_delete_two_daemons() {
     drop(link_a);
     a.0.kill().expect("демон убит");
     let _ = a.0.wait();
-    let bin = std::env::var("SHOPOT_BIN").expect("SHOPOT_BIN задан");
+    let bin = std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .expect("SHOPOT_BIN задан");
     a.0 = Command::new(&bin)
         .arg("serve")
         .env("HOME", &a.1)
@@ -1316,7 +1338,10 @@ async fn cards_and_chat_delete_two_daemons() {
 /// CORE_FEEDBACK §7 обходится именно так).
 #[tokio::test]
 async fn own_card_carries_set_name() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }
@@ -1428,7 +1453,10 @@ async fn own_card_carries_set_name() {
 /// Звонки есть с API 1.0 — гейта по версии нет; нужна живая сессия.
 #[tokio::test]
 async fn call_offer_answer_end_two_daemons() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }
@@ -1561,7 +1589,10 @@ async fn call_offer_answer_end_two_daemons() {
 /// у B их же хранит. Entities — API 2.0+; моложе — пропуск.
 #[tokio::test]
 async fn formatted_message_entities_two_daemons() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }
@@ -1627,8 +1658,16 @@ async fn formatted_message_entities_two_daemons() {
     // Тело «жирно и тайна»: «жирно» bold [0..10], «тайна» spoiler [14..24]
     // (байты UTF-8: кириллица по 2).
     let entities = vec![
-        shopot_gui::core_link::Entity::new(shopot_gui::core_link::EntityKind::Bold, 0, 10),
-        shopot_gui::core_link::Entity::new(shopot_gui::core_link::EntityKind::Spoiler, 14, 10),
+        stille_messenger::core_link::Entity::new(
+            stille_messenger::core_link::EntityKind::Bold,
+            0,
+            10,
+        ),
+        stille_messenger::core_link::Entity::new(
+            stille_messenger::core_link::EntityKind::Spoiler,
+            14,
+            10,
+        ),
     ];
     let reply = execute_retry(
         &link_a,
@@ -1686,8 +1725,8 @@ async fn formatted_message_entities_two_daemons() {
         Request::SendMsg {
             cid: cid_b,
             text: "короткий".into(),
-            entities: vec![shopot_gui::core_link::Entity::new(
-                shopot_gui::core_link::EntityKind::Bold,
+            entities: vec![stille_messenger::core_link::Entity::new(
+                stille_messenger::core_link::EntityKind::Bold,
                 0,
                 999,
             )],
@@ -1706,7 +1745,10 @@ async fn formatted_message_entities_two_daemons() {
 /// с любого ядра (1.0+), гейта по версии нет.
 #[tokio::test]
 async fn reactions_two_daemons() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }
@@ -1837,11 +1879,14 @@ async fn reactions_two_daemons() {
 }
 
 /// Два демона: файл доезжает (S10). A шлёт реальный файл с диска; B
-/// получает FILE_RECEIVED, файл лежит в его ~/.shopot/files/<hex> с тем
+/// получает FILE_RECEIVED, файл лежит в его ~/.stille-messenger/files/<hex> с тем
 /// же содержимым; A получает FILE_SENT — честный «отправлен».
 #[tokio::test]
 async fn file_transfer_two_daemons() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }
@@ -1941,7 +1986,7 @@ async fn file_transfer_two_daemons() {
     assert_eq!(name, src.file_name().unwrap().to_string_lossy());
 
     let hex: String = file_id.iter().map(|b| format!("{b:02x}")).collect();
-    let stored = b.1.join(".shopot/files").join(&hex);
+    let stored = b.1.join(".stille-messenger/files").join(&hex);
     let stored_bytes =
         std::fs::read(&stored).unwrap_or_else(|e| panic!("файл у B на диске ({:?}): {e}", stored));
     assert_eq!(stored_bytes, payload, "содержимое доехало без искажений");
@@ -1976,7 +2021,10 @@ async fn file_transfer_two_daemons() {
 /// у B для A отдаёт тот же id.
 #[tokio::test]
 async fn avatar_two_daemons() {
-    if std::env::var("SHOPOT_BIN").is_err() {
+    if std::env::var("STILLE_MESSENGER_BIN")
+        .or_else(|_| std::env::var("SHOPOT_BIN"))
+        .is_err()
+    {
         eprintln!("SHOPOT_BIN не задан — e2e против демона пропущен");
         return;
     }

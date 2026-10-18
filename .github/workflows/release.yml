@@ -35,16 +35,16 @@ jobs:
       - name: Package
         run: |
           mkdir -p pkg
-          cp target/release/shopot-gui pkg/
-          cp core/zig/zig-out/bin/shopot-zig pkg/
+          cp target/release/stille-messenger pkg/
+          cp core/zig/zig-out/bin/stille-messenger-core pkg/
           cp run.sh README.md README.ru.md LICENSE pkg/
-          tar -czf "shopot-${GITHUB_REF_NAME}-x86_64-linux-gnu.tar.gz" -C pkg .
-          sha256sum shopot-*.tar.gz > SHA256SUMS
+          tar -czf "stille-messenger-${GITHUB_REF_NAME}-x86_64-linux-gnu.tar.gz" -C pkg .
+          sha256sum stille-messenger-*.tar.gz > SHA256SUMS
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            shopot-*.tar.gz
+            stille-messenger-*.tar.gz
             SHA256SUMS
           body: |
             One archive: the client and the daemon for Linux x86_64.

@@ -1,10 +1,10 @@
-<img src="docs/icon.png" width="72" align="right" alt="shopot icon">
+<img src="docs/icon.png" width="72" align="right" alt="Stille Messenger icon">
 
-# shopot
+# Stille Messenger
 
-[![CI](https://github.com/EryyynIT/shopot/actions/workflows/ci.yml/badge.svg)](https://github.com/EryyynIT/shopot/actions/workflows/ci.yml)
+[![CI](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml/badge.svg)](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml)
 
-Desktop GUI client for [shopot-core](https://github.com/Puxxalwl/shopot-core/) —
+Stille Messenger desktop GUI client for [stille-messenger-core](https://github.com/Puxxalwl/shopot-core/) —
 a serverless P2P messaging engine with end-to-end encryption and forward secrecy.
 
 Built with [iced](https://github.com/iced-rs/iced) on the tiny-skia software
@@ -19,8 +19,8 @@ statuses, and no invented read receipts or presence.
 
 Published release: **v0.1.1**. The capabilities below describe current
 `main`, not the contents of that older release archive. Current main talks
-to a real `shopot serve` daemon over its binary frame API 2.2.0
-on a Unix domain socket (`$HOME/.shopot/api.sock`); `--mock` runs a built-in
+to a real `stille-messenger-core serve` daemon over its binary frame API 2.2.0
+on a Unix domain socket (`$HOME/.stille-messenger/api.sock`); `--mock` runs a built-in
 demo scene instead.
 
 The current client includes history, search, calls, formatting, reactions,
@@ -31,7 +31,7 @@ Done so far:
 
 - typed core link: binary frame codec, request correlation, events, reconnect
   with resync; an e2e test runs invite → message → delivery ACK against two
-  real daemons (gated by `SHOPOT_BIN`)
+  real daemons (gated by `STILLE_MESSENGER_BIN`; legacy `SHOPOT_BIN` is also accepted)
 - meeting flow: one-time invite codes with a QR, adding a contact by someone
   else's code; LAN, address and relay codes
 - contacts list with presence dots and unread badges
@@ -66,7 +66,7 @@ The desktop contract adapts content-first hierarchy, explicit states and
 measured validation from [Stille UI design (EN)](https://github.com/Puxxalwl/Stille-Messenger-Android/blob/main/docs/UI-DESIGN.md)
 and [RU](https://github.com/Puxxalwl/Stille-Messenger-Android/blob/main/ru/UI-DESIGN.md).
 It does not copy Android code, bottom tabs, swipe-only navigation, Back,
-ripple, 48dp units or motion blur. Shopot keeps opaque surfaces and its
+ripple, 48dp units or motion blur. Stille keeps opaque surfaces and its
 sidebar/conversation layout. This reference is provenance, not a second
 guideline or permission to add dependencies.
 
@@ -76,25 +76,25 @@ Releases ship one archive with the client, the daemon and a launcher for
 Linux x86_64 — no toolchains needed:
 
 ```sh
-tar -xzf shopot-v0.1.1-x86_64-linux-gnu.tar.gz
-cd shopot && ./run.sh
+tar -xzf stille-messenger-v0.1.1-x86_64-linux-gnu.tar.gz
+cd stille-messenger && ./run.sh
 ```
 
 `run.sh` creates your identity on first start, runs the daemon in the
 background and opens the client. Building from source is below.
 
-Local packaging prototypes are available for development, but are not part of
-remote releases yet. AppImage requires `appimagetool`; Flatpak requires
-`flatpak-builder` and the Freedesktop 24.08 runtime:
+Local AppImage/Flatpak prototypes are under review during the rename. AppImage
+requires `appimagetool`; Flatpak requires `flatpak-builder` and the Freedesktop
+24.08 runtime:
 
 ```sh
 scripts/build_appimage.sh dev
 flatpak-builder --user --install build-flatpak \
-  packaging/flatpak/io.github.EryyynIT.shopot.yaml
+  packaging/flatpak/io.github.stille_messenger.yaml
 ```
 
-The packaging layout is intentionally provisional until the product rename and
-visual redesign are complete.
+The packaging identifiers now use the Stille brand; local build prototypes
+remain outside the remote release workflow.
 
 ## Build and run
 
@@ -104,8 +104,8 @@ the daemon.
 ```sh
 # the engine: build once, init your identity, run the daemon
 cd core/zig && zig build -Doptimize=ReleaseSafe && cd ../..
-./core/zig/zig-out/bin/shopot-zig init
-./core/zig/zig-out/bin/shopot-zig serve
+./core/zig/zig-out/bin/stille-messenger-core init
+./core/zig/zig-out/bin/stille-messenger-core serve
 
 # the client, in another terminal
 cargo run --release
@@ -131,14 +131,14 @@ without an address only works inside one LAN. The daemon prints
 «слушаю 0.0.0.0:PORT» on start — forward that port on your router, then type
 your public `host:port` into «Адрес» before issuing: the peer's daemon dials
 you directly. The «через relay» checkbox routes the
-connection through a `shopot relay` server so the peer never sees your IP;
+connection through a `stille-messenger-core relay` server so the peer never sees your IP;
 on the pinned daemon build this path is experimental — the address code is
 the reliable one.
 
 ## The core
 
-shopot itself is the client; the engine — encrypted P2P transport, sessions,
-storage — lives in [shopot-core](https://github.com/Puxxalwl/shopot-core) by
+Stille itself is the client; the engine — encrypted P2P transport, sessions,
+storage — lives in [stille-messenger-core](https://github.com/Puxxalwl/shopot-core) by
 [puxxalwl](https://github.com/puxxalwl). The pinned API contract is vendored
 as the `core` git submodule (binary protocol spec:
 `core/zig/docs/CORE-API.md`).

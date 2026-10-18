@@ -160,7 +160,7 @@ pub struct CallAudio {
 }
 
 impl CallAudio {
-    /// Поднять мост: fifo из pcm_dir (~/.shopot/pcm у демона) + устройства
+    /// Поднять мост: fifo из pcm_dir (~/.stille-messenger/pcm у демона) + устройства
     /// по умолчанию. Не падает: чего не хватило — в `gaps`, звонок идёт
     /// без этого куска (молчание = нули, ядро шлёт DTX-keepalive).
     pub fn start(pcm_dir: &Path) -> Self {
@@ -453,9 +453,9 @@ fn downmix_f32(data: &[f32], channels: usize) -> Vec<i16> {
         .collect()
 }
 
-/// Каталог fifo демона по его $HOME (~/.shopot/pcm, CORE-API §4.6).
+/// Каталог fifo демона по его $HOME (~/.stille-messenger/pcm, CORE-API §4.6).
 pub fn pcm_dir(home: &Path) -> PathBuf {
-    home.join(".shopot").join("pcm")
+    home.join(".stille-messenger").join("pcm")
 }
 
 #[cfg(test)]

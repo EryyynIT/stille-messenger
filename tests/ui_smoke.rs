@@ -9,11 +9,11 @@ use iced::futures::channel::mpsc;
 use iced_test::emulator::{self, Emulator, Mode};
 use iced_test::instruction::{Expectation, Interaction, Key, Keyboard, Mouse, Target};
 use iced_test::Instruction;
-use shopot_gui::app::{self, Link};
-use shopot_gui::core_link::mock::Scene;
-use shopot_gui::model::cid::Cid;
-use shopot_gui::model::msg::SendState;
 use std::time::{Duration, Instant};
+use stille_messenger::app::{self, Link};
+use stille_messenger::core_link::mock::Scene;
+use stille_messenger::model::cid::Cid;
+use stille_messenger::model::msg::SendState;
 
 type Event<P> = emulator::Event<P>;
 
@@ -316,11 +316,11 @@ fn invite_with_address_and_relay() {
         "relay-код не должен попадать в LAN-кэш"
     );
     // На экране эллипсис случайного кода, поэтому режим сверяем по состоянию.
-    if let shopot_gui::ui::Overlay::Invite(view) = &state.overlay {
+    if let stille_messenger::ui::Overlay::Invite(view) = &state.overlay {
         assert!(view.relay, "галка relay в форме выданного кода");
         let code = view.code.as_deref().expect("код выдан");
         assert!(
-            code.starts_with("shopot1r."),
+            code.starts_with("stille://i/r/"),
             "код relay-режима от заглушки: {code}"
         );
         assert!(
@@ -712,7 +712,7 @@ fn escape_closes_overlay() {
 
     emu.update(
         &program,
-        shopot_gui::ui::Message::Meet(shopot_gui::ui::MeetIn::CloseOverlay),
+        stille_messenger::ui::Message::Meet(stille_messenger::ui::MeetIn::CloseOverlay),
     );
     pump(&mut emu, &program, &mut receiver, 300);
 
@@ -724,7 +724,7 @@ fn escape_closes_overlay() {
 /// адреса без клика, настройки — в поле имени; после закрытия оверлея
 /// ввод возвращается в композер (черновик чата).
 fn focus_follows_overlay_and_returns() {
-    use shopot_gui::ui::{MeetIn, Message, Overlay, SettingsIn};
+    use stille_messenger::ui::{MeetIn, Message, Overlay, SettingsIn};
 
     let program = app::program(Link::new(Scene::smoke()));
     let (sender, mut receiver) = mpsc::channel(512);
@@ -794,11 +794,11 @@ fn search_result_jumps_to_message() {
     let mut scene = Scene::smoke();
     scene.history.insert(
         1,
-        vec![shopot_gui::core_link::HistoryMsg {
+        vec![stille_messenger::core_link::HistoryMsg {
             mine: false,
             delivered: false,
-            msg_id: shopot_gui::model::msg::CoreMsgId([42; 16]),
-            ts_ms: shopot_gui::core_link::now_ms(),
+            msg_id: stille_messenger::model::msg::CoreMsgId([42; 16]),
+            ts_ms: stille_messenger::core_link::now_ms(),
             text: "крайне редкая фраза".into(),
             entities: Vec::new(),
         }],
@@ -831,7 +831,7 @@ fn search_result_jumps_to_message() {
     // Панель поиска, запрос, дожидаемся ответа ядра (mock 2.2).
     emu.update(
         &program,
-        shopot_gui::ui::Message::Chat(shopot_gui::ui::ChatIn::SearchOpen),
+        stille_messenger::ui::Message::Chat(stille_messenger::ui::ChatIn::SearchOpen),
     );
     run_instruction(
         &mut emu,
@@ -910,7 +910,7 @@ fn settings_overlay_toggles_and_closes() {
     // доходит (см. escape_closes_overlay) — закрываем тем же сообщением.
     emu.update(
         &program,
-        shopot_gui::ui::Message::Meet(shopot_gui::ui::MeetIn::CloseOverlay),
+        stille_messenger::ui::Message::Meet(stille_messenger::ui::MeetIn::CloseOverlay),
     );
     pump(&mut emu, &program, &mut receiver, 300);
 
@@ -1074,9 +1074,9 @@ fn formatted_message_renders() {
 /// Только синтетический State: один и тот же текст на разных фонах,
 /// без фоновых событий, сети и изменения пользовательских данных.
 fn long_names_layout_matrix() {
-    use shopot_gui::model::store::Contact;
-    use shopot_gui::ui::{self, Message, SettingsIn};
     use std::sync::Arc;
+    use stille_messenger::model::store::Contact;
+    use stille_messenger::ui::{self, Message, SettingsIn};
 
     let boot = || {
         let mut state = ui::State::new(Arc::new(Link::new(Scene::smoke())));
@@ -1144,10 +1144,10 @@ fn long_names_layout_matrix() {
 }
 
 fn neutral_text_matrix() {
-    use shopot_gui::model::msg::{FileRef, MsgId};
-    use shopot_gui::model::store::Contact;
-    use shopot_gui::ui::{self, ChatIn, MeetIn, Message, SettingsIn};
     use std::sync::Arc;
+    use stille_messenger::model::msg::{FileRef, MsgId};
+    use stille_messenger::model::store::Contact;
+    use stille_messenger::ui::{self, ChatIn, MeetIn, Message, SettingsIn};
 
     let boot = || {
         let mut state = ui::State::new(Arc::new(Link::new(Scene::smoke())));

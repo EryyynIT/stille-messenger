@@ -1,4 +1,4 @@
-//! shopot-gui — визуальный клиент shopot поверх ядра.
+//! stille-messenger — визуальный клиент поверх stille-messenger-core.
 
 pub mod app;
 pub mod audio;

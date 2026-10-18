@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.stille_messenger</id>
+  <name>Stille Messenger</name>
+  <summary>Quiet serverless peer-to-peer messenger</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>Stille is a quiet peer-to-peer messenger with local encrypted storage,
+    voice calls and no third-party service.</p>
+  </description>
+  <url type="homepage">https://github.com/EryyynIT/stille-messenger</url>
+  <launchable type="desktop-id">io.github.stille_messenger.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+</component>

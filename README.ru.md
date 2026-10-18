@@ -1,10 +1,10 @@
-<img src="docs/icon.png" width="72" align="right" alt="иконка shopot">
+<img src="docs/icon.png" width="72" align="right" alt="иконка Stille Messenger">
 
-# shopot
+# Stille Messenger
 
-[![CI](https://github.com/EryyynIT/shopot/actions/workflows/ci.yml/badge.svg)](https://github.com/EryyynIT/shopot/actions/workflows/ci.yml)
+[![CI](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml/badge.svg)](https://github.com/EryyynIT/stille-messenger/actions/workflows/ci.yml)
 
-Визуальный десктоп-клиент для [shopot-core](https://github.com/Puxxalwl/shopot-core/) —
+Десктоп-клиент Stille Messenger для [stille-messenger-core](https://github.com/Puxxalwl/shopot-core/) —
 серверлесс P2P-движок обмена сообщениями со сквозным шифрованием и forward secrecy.
 
 Собран на [iced](https://github.com/iced-rs/iced) с программным рендером
@@ -17,8 +17,8 @@ tiny-skia на Rust: тёмная content-first палитра, один акц�
 
 Опубликованный релиз: **v0.1.1**. Возможности ниже описывают текущий
 `main`, а не содержимое старого релизного архива. Текущий main работает
-с реальным демоном `shopot serve` по бинарному кадровому API 2.2.0
-через Unix-сокет (`$HOME/.shopot/api.sock`); `--mock` включает демо-сцену
+с реальным демоном `stille-messenger-core serve` по бинарному кадровому API 2.2.0
+через Unix-сокет (`$HOME/.stille-messenger/api.sock`); `--mock` включает демо-сцену
 без ядра.
 
 Текущий клиент поддерживает историю, поиск, звонки, разметку, реакции, файлы
@@ -29,7 +29,7 @@ tiny-skia на Rust: тёмная content-first палитра, один акц�
 
 - типизированный канал ядра: кодек бинарных кадров, корреляция ответов,
   события, реконнект с ресинком; e2e-тест гоняет инвайт → сообщение → ACK
-  доставки против двух реальных демонов (гейт по `SHOPOT_BIN`)
+  доставки против двух реальных демонов (гейт по `STILLE_MESSENGER_BIN`, старое `SHOPOT_BIN` поддерживается)
 - знакомство: одноразовые коды приглашений с QR, добавление по чужому коду;
   LAN, адресные и relay-коды
 - список контактов с точками presence и бейджами непрочитанных
@@ -65,7 +65,7 @@ Desktop-контракт адаптирует content-first иерархию, я
 проверку измерениями из [Stille UI design (EN)](https://github.com/Puxxalwl/Stille-Messenger-Android/blob/main/docs/UI-DESIGN.md)
 и [RU](https://github.com/Puxxalwl/Stille-Messenger-Android/blob/main/ru/UI-DESIGN.md).
 Код Android, bottom tabs, swipe-only навигация, Back, ripple, 48dp и
-motion-blur не копируются. Shopot сохраняет непрозрачные поверхности и
+motion-blur не копируются. Stille сохраняет непрозрачные поверхности и
 sidebar/conversation layout. Ссылка фиксирует происхождение идей, а не
 создаёт второй guideline или разрешает новые зависимости.
 
@@ -75,25 +75,25 @@ sidebar/conversation layout. Ссылка фиксирует происхожд�
 без тулчейнов:
 
 ```sh
-tar -xzf shopot-v0.1.1-x86_64-linux-gnu.tar.gz
-cd shopot && ./run.sh
+tar -xzf stille-messenger-v0.1.1-x86_64-linux-gnu.tar.gz
+cd stille-messenger && ./run.sh
 ```
 
 `run.sh` при первом запуске создаёт личность, поднимает демона в фоне и
 открывает клиент. Сборка из исходников — ниже.
 
-Локальные прототипы упаковки доступны для разработки, но пока не входят в
-удалённые релизы. Для AppImage нужен `appimagetool`, для Flatpak —
+Локальные прототипы AppImage/Flatpak проходят проверку в ходе rename; это не
+артефакты удалённого релиза. Для AppImage нужен `appimagetool`, для Flatpak —
 `flatpak-builder` и runtime Freedesktop 24.08:
 
 ```sh
 scripts/build_appimage.sh dev
 flatpak-builder --user --install build-flatpak \
-  packaging/flatpak/io.github.EryyynIT.shopot.yaml
+  packaging/flatpak/io.github.stille_messenger.yaml
 ```
 
-Схема упаковки временная: после ренейминга и редизайна её нужно будет
-пересмотреть.
+Идентификаторы упаковки используют бренд Stille; локальные прототипы пока не
+входят в удалённый release workflow.
 
 ## Сборка и запуск
 
@@ -102,8 +102,8 @@ flatpak-builder --user --install build-flatpak \
 ```sh
 # движок: собрать, создать личность, запустить демона
 cd core/zig && zig build -Doptimize=ReleaseSafe && cd ../..
-./core/zig/zig-out/bin/shopot-zig init
-./core/zig/zig-out/bin/shopot-zig serve
+./core/zig/zig-out/bin/stille-messenger-core init
+./core/zig/zig-out/bin/stille-messenger-core serve
 
 # клиент, в другом терминале
 cargo run --release
@@ -128,14 +128,14 @@ cargo run --release
 «слушаю 0.0.0.0:PORT» — пробросьте этот порт на роутере, затем впишите свой
 публичный `host:port` в поле «Адрес» перед выдачей: демон собеседника
 дозвонится напрямую. Галка «через relay» пускает
-соединение через сервер `shopot relay`, чтобы собеседник не увидел ваш IP;
+соединение через сервер `stille-messenger-core relay`, чтобы собеседник не увидел ваш IP;
 на закреплённой сборке демона этот путь экспериментальный — надёжный сейчас
 вариант: код с адресом.
 
 ## Ядро
 
-shopot — это только клиент; движок — шифрованный P2P-транспорт, сессии,
-хранилище — живёт в [shopot-core](https://github.com/Puxxalwl/shopot-core)
+Stille — это клиент; движок — шифрованный P2P-транспорт, сессии,
+хранилище — в [stille-messenger-core](https://github.com/Puxxalwl/shopot-core)
 от [puxxalwl](https://github.com/puxxalwl). Зафиксированный контракт API —
 подмодуль `core` (спецификация бинарного протокола:
 `core/zig/docs/CORE-API.md`).

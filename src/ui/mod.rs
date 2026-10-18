@@ -765,7 +765,7 @@ fn on_link<L: CoreLink>(state: &mut State<L>, link: LinkIn) -> Task<Message> {
                 state.store.apply_avatar(cid, avatar_id, data);
                 Task::none()
             }
-            // Входящий файл (S10): ядро сохранил в ~/.shopot/files/<hex>;
+            // Входящий файл (S10): ядро сохранил в ~/.stille-messenger/files/<hex>;
             // пузырь с кнопкой открытия, уведомление как у сообщения.
             LinkEvent::FileReceived {
                 cid,
@@ -1883,11 +1883,11 @@ fn prepare_avatar(path: &std::path::Path) -> Result<Vec<u8>, String> {
     Ok(data)
 }
 
-/// Путь входящего файла: ядро кладёт в ~/.shopot/files/<hex file_id>.
+/// Путь входящего файла: ядро кладёт в ~/.stille-messenger/files/<hex file_id>.
 fn files_path(file_id: &[u8; 16]) -> String {
     let hex: String = file_id.iter().map(|b| format!("{b:02x}")).collect();
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    format!("{home}/.shopot/files/{hex}")
+    format!("{home}/.stille-messenger/files/{hex}")
 }
 
 /// Человеческий размер: «900 Б», «248 КБ», «3.2 МБ».
@@ -2226,12 +2226,18 @@ fn overlay_layer<'a, L: CoreLink>(
 
 fn title_bar<L: CoreLink>(state: &State<L>) -> Element<'static, Message> {
     let scale = state.store.settings.font_scale;
+    let logo = iced::widget::image(iced::widget::image::Handle::from_bytes(
+        include_bytes!("../../assets/stille_logo.png").to_vec(),
+    ))
+    .width(Length::Fixed(30.0 * scale))
+    .height(Length::Fixed(30.0 * scale));
     container(
         row![
-            text("shopot")
-                .size(14.0 * scale)
+            logo,
+            text("Stille")
+                .size(16.0 * scale)
                 .font(palette::bold())
-                .color(palette::ACCENT),
+                .color(palette::TEXT),
             space::Space::new().width(Length::Fill),
             button(text("Настройки").size(11.0 * scale).color(palette::TEXT))
                 .padding(Padding {
@@ -2763,7 +2769,7 @@ fn status_bar<L: CoreLink>(state: &State<L>) -> Option<Element<'static, Message>
 
 // ---------- время и локальные подписи (TEXT_STYLE.md §3) ----------
 
-/// Код для показа: начало и хвост (GUI_UI.md §1 рисует «shopot1.Bq7…xRf»).
+/// Код для показа: начало и хвост (GUI_UI.md §1 рисует «stille://i/Bq7…xRf»).
 /// Полный код едет через QR и «Скопировать код», а не через текст на экране.
 pub fn elided_code(code: &str) -> String {
     let chars: Vec<char> = code.chars().collect();
@@ -4458,7 +4464,7 @@ mod tests {
     }
 
     /// Входящий файл: пузырь с именем/размером, непрочитанное, путь
-    /// ~/.shopot/files/<hex> для открытия.
+    /// ~/.stille-messenger/files/<hex> для открытия.
     #[test]
     fn incoming_file_lands_in_feed() {
         let mut state = state();
@@ -4479,7 +4485,7 @@ mod tests {
         assert!(
             file.path
                 .as_ref()
-                .is_some_and(|p| p.contains("/.shopot/files/f1f1")),
+                .is_some_and(|p| p.contains("/.stille-messenger/files/f1f1")),
             "путь для открытия: {:?}",
             file.path
         );
