@@ -1,9 +1,11 @@
-//! E2E против реального демона shopot-core: два $HOME, два процесса
-//! `shopot serve`, UdsLink с обеих сторон — инвайт → сообщение → доставка.
+//! E2E против реального демона stille-messenger-core: два $HOME, два
+//! процесса `stille-messenger-core serve`, UdsLink с обеих сторон —
+//! инвайт → сообщение → доставка.
 //!
-//! Гейт: запускается только при заданном SHOPOT_BIN (путь к бинарнику
-//! ядра); в CI без него тест молча пропускается. Запуск локально:
-//!   SHOPOT_BIN=core/zig/zig-out/bin/shopot-zig cargo test --test e2e_daemon
+//! Гейт: запускается только при заданном STILLE_MESSENGER_BIN (путь к
+//! бинарнику ядра; legacy SHOPOT_BIN тоже принимается); в CI без него тест
+//! молча пропускается. Запуск локально:
+//!   STILLE_MESSENGER_BIN=core/core/zig-out/bin/stille-messenger-core cargo test --test e2e_daemon
 
 use std::path::PathBuf;
 use std::process::{Child, Command};
@@ -54,11 +56,17 @@ fn spawn_daemon(tag: &str) -> Daemon {
         "init не удался: {}",
         String::from_utf8_lossy(&init.stderr)
     );
+    // E2E_DEBUG=1: stderr демона в консоль (диагностика рукопожатий).
+    let inherit = std::env::var_os("E2E_DEBUG").is_some();
     let child = Command::new(&bin)
         .arg("serve")
         .env("HOME", &home)
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stderr(if inherit {
+            std::process::Stdio::inherit()
+        } else {
+            std::process::Stdio::null()
+        })
         .spawn()
         .expect("демон запущен");
     Daemon(child, home)
@@ -90,7 +98,12 @@ async fn wait_event(
         }
         match tokio::time::timeout(left, stream.next()).await {
             Ok(Some(event)) if pred(&event) => return event,
-            Ok(Some(_)) => continue,
+            Ok(Some(event)) => {
+                if std::env::var_os("E2E_DEBUG").is_some() {
+                    eprintln!("[e2e] событие: {event:?}");
+                }
+                continue;
+            }
             Ok(None) => panic!("поток событий закрылся"),
             Err(_) => panic!("таймаут ожидания события"),
         }
@@ -179,6 +192,7 @@ async fn invite_message_delivery_two_daemons() {
             || code.starts_with("shopot://i/"),
         "код: {code}"
     );
+    // NB: stille://i/ матчит и stille://i3/ (общий префикс) — ок для ассерта.
 
     let cid_b = match CoreLink::execute(&*link_b, Request::Add { code: code.clone() }).await {
         Ok(OkReply::Added { cid }) => cid,
@@ -1172,7 +1186,7 @@ async fn cards_and_chat_delete_two_daemons() {
 
     // A шлёт B свою визитку (contact = None). Имя в карточке — имя
     // профиля A; оно не задано (SET_NAME не вызывался), поэтому пусто —
-    // квирк ядра: «shopot» у B — дефолт инвайта, а не профиль.
+    // квирк ядра: «stille-messenger» у B — дефолт инвайта, а не профиль.
     let reply = execute_retry(
         &link_a,
         Request::SendContact {
@@ -1197,8 +1211,8 @@ async fn cards_and_chat_delete_two_daemons() {
     };
     assert_eq!(card_from, cid_a_at_b, "cid события — отправитель визитки");
     assert!(
-        card_name.is_empty() || card_name == "shopot",
-        "имя профиля не задано: пусто (83ea91e) или дефолт ядра: {card_name:?}"
+        card_name.is_empty() || card_name == "stille-messenger" || card_name == "shopot",
+        "имя профиля не задано: пусто или дефолт ядра: {card_name:?}"
     );
 
     // A пересылает B визитку C: другой человек — другой bundle.
