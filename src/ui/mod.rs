@@ -3129,6 +3129,37 @@ mod tests {
         );
     }
 
+    /// S16: закреп с известным телом, но вне загруженной ленты, — строка
+    /// без действия с честной пометкой; загруженный — без пометки.
+    #[test]
+    fn pins_panel_marks_unloaded_entries() {
+        use crate::model::msg::CoreMsgId;
+
+        let mut state = state();
+        state.store.replace_contacts(vec![contact(1, "Аня")]);
+        state
+            .store
+            .load_history(Cid(1), 1, &[history_record(7, 1000, "загруженное")]);
+        state
+            .store
+            .set_pin_ids(Cid(1), &[CoreMsgId([7; 16]), CoreMsgId([9; 16])]);
+        // Тело второго закрепа пришло отдельным GET_MESSAGE, в ленту оно
+        // не входит.
+        state
+            .store
+            .fill_pin(Cid(1), CoreMsgId([9; 16]), 2000, false, "старое".into());
+        state.store.select(Some(Cid(1)));
+        state.overlay = Overlay::Pins;
+
+        let mut ui = render(&state);
+        assert!(ui.find("загруженное").is_ok());
+        assert!(ui.find("старое").is_ok());
+        assert!(
+            ui.find("ещё не загружено — поднимите ленту выше").is_ok(),
+            "незагруженный закреп помечен честно"
+        );
+    }
+
     /// Совпадение от ядра (S11) для подстановки в Replied.
     fn kernel_hit(cid: i64, n: u8) -> SearchHit {
         SearchHit {
