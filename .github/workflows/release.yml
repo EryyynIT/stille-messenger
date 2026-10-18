@@ -27,7 +27,7 @@ jobs:
         # baseline: артефакт должен идти на любом x86_64, а не только
         # на CPU раннера (native по умолчанию даёт SIGILL на старых машинах).
         run: zig build -Doptimize=ReleaseSafe -Dcpu=baseline
-        working-directory: core/zig
+        working-directory: core/core
 
       - name: Build the client (Rust)
         run: cargo build --release
@@ -36,7 +36,7 @@ jobs:
         run: |
           mkdir -p pkg
           cp target/release/stille-messenger pkg/
-          cp core/zig/zig-out/bin/stille-messenger-core pkg/
+          cp core/core/zig-out/bin/stille-messenger-core pkg/
           cp run.sh README.md README.ru.md LICENSE pkg/
           tar -czf "stille-messenger-${GITHUB_REF_NAME}-x86_64-linux-gnu.tar.gz" -C pkg .
           sha256sum stille-messenger-*.tar.gz > SHA256SUMS
@@ -62,6 +62,6 @@ jobs:
               the list, Ctrl+Q quits, Escape closes any dialog
 
             The daemon is built from the pinned
-            [shopot-core](https://github.com/Puxxalwl/shopot-core) submodule
+            [stille-messenger-core](https://github.com/Puxxalwl/stille-messenger-core) submodule
             (Zig 0.17.0). Building from source is covered in the README inside
             the archive.

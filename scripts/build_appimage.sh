@@ -21,9 +21,9 @@ find_zig() {
     echo "$HOME/.local/opt/zig-0.17.0/zig"
 }
 
-if [ ! -x core/zig/zig-out/bin/stille-messenger-core ]; then
+if [ ! -x core/core/zig-out/bin/stille-messenger-core ]; then
     echo "== build core (baseline x86_64)"
-    (cd core/zig && "$(find_zig)" build -Doptimize=ReleaseSafe -Dcpu=baseline)
+    (cd core/core && "$(find_zig)" build -Doptimize=ReleaseSafe -Dcpu=baseline)
 fi
 
 if [ ! -x target/release/stille-messenger ]; then
@@ -35,7 +35,7 @@ echo "== AppDir"
 rm -rf "$appdir"
 mkdir -p "$appdir/usr/bin"
 cp target/release/stille-messenger "$appdir/usr/bin/"
-cp core/zig/zig-out/bin/stille-messenger-core "$appdir/usr/bin/"
+cp core/core/zig-out/bin/stille-messenger-core "$appdir/usr/bin/"
 cp packaging/appimage/AppRun "$appdir/"
 cp packaging/appimage/io.github.stille_messenger.desktop \
     "$appdir/io.github.stille_messenger.desktop"

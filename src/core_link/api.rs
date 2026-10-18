@@ -1,5 +1,5 @@
 //! Кодек бинарного протокола ядра — контракт CORE-API
-//! (`core/zig/src/shopot/app/api.zig`, спецификация `core/zig/docs/CORE-API.md`).
+//! (`core/core/src/stille-messenger/app/api.zig`, спецификация `core/core/docs/CORE-API.md`).
 //! Подмодуль `core/` на 83ea91e (API 2.2.0); клиент работает и с ядрами 1.x —
 //! версия выясняется зондом GET_VERSION (см. [`super::uds`]).
 //!

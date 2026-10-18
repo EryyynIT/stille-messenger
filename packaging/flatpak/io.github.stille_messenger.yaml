@@ -16,8 +16,9 @@ finish-args:
   - --device=dri
   - --socket=pulseaudio
   - --talk-name=org.freedesktop.Notifications
+  # NB: миграция legacy ~/.shopot внутри сандбокса недоступна (старые данные
+  # жили под другим app-id); перенос таких данных — отдельный открытый вопрос.
   - --persist=.stille-messenger
-  - --filesystem=~/.var/app/io.github.EryyynIT.shopot/.shopot:ro
 
 modules:
   - name: stille-messenger
@@ -32,7 +33,7 @@ modules:
       - type: file
         path: ../../target/release/stille-messenger
       - type: file
-        path: ../../core/zig/zig-out/bin/stille-messenger-core
+        path: ../../core/core/zig-out/bin/stille-messenger-core
       - type: file
         path: io.github.stille_messenger.desktop
       - type: file

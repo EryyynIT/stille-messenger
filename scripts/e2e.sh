@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # e2e против двух копий ядра: вендоренного подмодуля core/ (пин-эталон
-# контракта, сейчас 83ea91e = API 2.2.0) и свежего клона ../shopot-core
-# (ловит дрейф, когда клон уезжает вперёд пина). Бинарники собираются,
-# только если их нет.
+# контракта) и свежего клона ../shopot-core (ловит дрейф, когда клон уезжает
+# вперёд пина). Бинарники собираются, только если их нет.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -21,13 +20,22 @@ ZIG_BIN="$(find_zig)"
 
 run_against() {
     local root="$1"
-    local bin="$root/zig/zig-out/bin/stille-messenger-core"
-    if [ ! -x "$bin" ] && [ -x "$root/zig/zig-out/bin/shopot-zig" ]; then
-        bin="$root/zig/zig-out/bin/shopot-zig"
+    # Новый layout монорепы stille-messenger-core: zig-проект в core/;
+    # старый layout (до переезда) держал его в zig/.
+    local proj="$root/core"
+    if [ ! -f "$proj/build.zig" ]; then
+        proj="$root/zig"
+    fi
+    local bin="$proj/zig-out/bin/stille-messenger-core"
+    if [ ! -x "$bin" ] && [ -x "$proj/zig-out/bin/stille-messenger" ]; then
+        bin="$proj/zig-out/bin/stille-messenger"
+    fi
+    if [ ! -x "$bin" ] && [ -x "$proj/zig-out/bin/shopot-zig" ]; then
+        bin="$proj/zig-out/bin/shopot-zig"
     fi
     if [ ! -x "$bin" ]; then
-        echo "== сборка ядра: $root"
-        (cd "$root/zig" && "$ZIG_BIN" build -Doptimize=ReleaseFast)
+        echo "== сборка ядра: $proj"
+        (cd "$proj" && "$ZIG_BIN" build -Doptimize=ReleaseFast)
     fi
     echo "== e2e против $bin"
     # Демоны тестов — отдельные процессы; под параллельной нагрузкой
@@ -37,4 +45,6 @@ run_against() {
 }
 
 run_against core
-run_against "${SHOPOT_CORE:-../shopot-core}"
+if [ -d "${SHOPOT_CORE:-../shopot-core}" ]; then
+    run_against "${SHOPOT_CORE:-../shopot-core}"
+fi
